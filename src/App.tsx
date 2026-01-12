@@ -12,12 +12,16 @@ import LeadDetail from "./pages/LeadDetail";
 import NotFound from "./pages/NotFound";
 import Sidebar from "./components/Sidebar";
 
-// App.tsx logic
+const queryClient = new QueryClient();
+
 const App = () => {
+  const [counts, setCounts] = useState({ all: 0, overdue: 0, today: 0, active: 0, closed: 0 });
+
+  // 1. Team Theme Logic (Morning 6 to Evening 6)
   useEffect(() => {
     const updateTheme = () => {
       const hour = new Date().getHours();
-      const isDayTime = hour >= 6 && hour < 18; // Morning 6 to Evening 6
+      const isDayTime = hour >= 6 && hour < 18;
 
       if (isDayTime) {
         document.documentElement.classList.remove('dark');
@@ -26,19 +30,12 @@ const App = () => {
       }
     };
 
-    updateTheme(); // Initial check
-    const interval = setInterval(updateTheme, 60000); // Every minute check
+    updateTheme();
+    const interval = setInterval(updateTheme, 60000);
     return () => clearInterval(interval);
   }, []);
 
-  // ... rest of your App.tsx code
-}
-
-const queryClient = new QueryClient();
-
-const App = () => {
-  const [counts, setCounts] = useState({ all: 0, overdue: 0, today: 0, active: 0, closed: 0 });
-
+  // 2. Database Stats Logic
   useEffect(() => {
     async function updateStats() {
       const { data: leads } = await supabase.from('leads').select('*');
@@ -65,7 +62,8 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <div className="flex h-screen bg-gray-50 overflow-hidden">
+          {/* Main Container - bg-gray-50 dark:bg-slate-950 and transition for smooth theme change */}
+          <div className="flex h-screen bg-gray-50 dark:bg-slate-950 transition-colors duration-500 overflow-hidden">
             <Sidebar counts={counts} />
             <main className="flex-1 overflow-y-auto p-4 md:p-8">
               <Routes>
