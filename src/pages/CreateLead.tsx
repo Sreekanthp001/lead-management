@@ -30,7 +30,7 @@ export default function CreateLead() {
   const { addLead } = useLeads();
   const [isOptionalOpen, setIsOptionalOpen] = useState(false);
 
-  // Required fields
+  // Required fields [cite: 7-22]
   const [name, setName] = useState('');
   const [source, setSource] = useState<LeadSource>('linkedin');
   const [primaryContact, setPrimaryContact] = useState('');
@@ -39,20 +39,39 @@ export default function CreateLead() {
   const [nextAction, setNextAction] = useState('Contact lead');
   const [nextActionDate, setNextActionDate] = useState<Date>(new Date());
 
-  // Optional fields
+  // Optional fields [cite: 23-29]
   const [contextNote, setContextNote] = useState('');
   const [priority, setPriority] = useState<LeadPriority | undefined>();
   const [tags, setTags] = useState('');
   const [valueEstimate, setValueEstimate] = useState('');
 
+  // PDF Validation Rule: LinkedIn URL must match linkedin.com/* 
+  const isValidLinkedInUrl = (url: string) => {
+    const pattern = /^(https?:\/\/)?(www\.)?linkedin\.com\/.*$/i;
+    return pattern.test(url);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!name.trim() || !linkedinUrl.trim() || !primaryContact.trim()) {
-      toast.error('Please fill in all required fields');
+    // 1. Basic Required Fields Check 
+    if (!name.trim() || !primaryContact.trim() || !nextAction.trim() || !nextActionDate) {
+      toast.error('Please fill in all mandatory fields');
       return;
     }
 
+    // 2. Strict LinkedIn Validation 
+    if (!linkedinUrl.trim()) {
+      toast.error('LinkedIn Profile URL is mandatory');
+      return;
+    }
+
+    if (!isValidLinkedInUrl(linkedinUrl.trim())) {
+      toast.error('Invalid URL! Must be a valid linkedin.com profile link.');
+      return;
+    }
+
+    // 3. Success Criteria: Save Lead
     addLead({
       name: name.trim(),
       source,
@@ -90,7 +109,7 @@ export default function CreateLead() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Required Fields */}
+          {/* Required Information Section */}
           <div className="space-y-6 p-6 rounded-xl bg-card border">
             <h2 className="font-semibold text-card-foreground">Required Information</h2>
 
@@ -101,7 +120,7 @@ export default function CreateLead() {
                   id="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Sarah Chen or TechCorp Inc."
+                  placeholder="e.g. Sarah Chen"
                   required
                 />
               </div>
@@ -115,7 +134,7 @@ export default function CreateLead() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="linkedin">LinkedIn</SelectItem>
-                      <SelectItem value="email">Email</SelectItem>
+                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
                       <SelectItem value="referral">Referral</SelectItem>
                       <SelectItem value="website">Website</SelectItem>
                       <SelectItem value="other">Other</SelectItem>
@@ -124,7 +143,7 @@ export default function CreateLead() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="status">Status</Label>
+                  <Label htmlFor="status">Status *</Label>
                   <Select value={status} onValueChange={(v) => setStatus(v as LeadStatus)}>
                     <SelectTrigger>
                       <SelectValue />
@@ -132,7 +151,8 @@ export default function CreateLead() {
                     <SelectContent>
                       <SelectItem value="new">New</SelectItem>
                       <SelectItem value="contacted">Contacted</SelectItem>
-                      <SelectItem value="in-progress">In Progress</SelectItem>
+                      <SelectItem value="interested">Interested</SelectItem>
+                      <SelectItem value="follow-up">Follow-up</SelectItem>
                       <SelectItem value="closed">Closed</SelectItem>
                       <SelectItem value="dropped">Dropped</SelectItem>
                     </SelectContent>
@@ -146,63 +166,64 @@ export default function CreateLead() {
                   id="contact"
                   value={primaryContact}
                   onChange={(e) => setPrimaryContact(e.target.value)}
-                  placeholder="e.g. sarah@techcorp.io or +1 (555) 123-4567"
+                  placeholder="e.g. sarah@email.com or +91 98765..."
                   required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="linkedin">LinkedIn Profile URL *</Label>
+                <Label htmlFor="linkedin" className={cn(!isValidLinkedInUrl(linkedinUrl) && linkedinUrl.length > 0 && "text-destructive")}>
+                  LinkedIn Profile URL * {!isValidLinkedInUrl(linkedinUrl) && linkedinUrl.length > 0 && "(Invalid Format)"}
+                </Label>
                 <Input
                   id="linkedin"
-                  type="url"
+                  type="text"
                   value={linkedinUrl}
                   onChange={(e) => setLinkedinUrl(e.target.value)}
                   placeholder="https://linkedin.com/in/username"
+                  className={cn(!isValidLinkedInUrl(linkedinUrl) && linkedinUrl.length > 0 && "border-destructive focus-visible:ring-destructive")}
                   required
                 />
+                <p className="text-xs text-muted-foreground">Must contain linkedin.com</p>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="nextAction">Next Action *</Label>
-                <Input
-                  id="nextAction"
-                  value={nextAction}
-                  onChange={(e) => setNextAction(e.target.value)}
-                  placeholder="e.g. Send introductory message"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Next Action Date *</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        'w-full justify-start text-left font-normal',
-                        !nextActionDate && 'text-muted-foreground'
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {nextActionDate ? format(nextActionDate, 'PPP') : 'Pick a date'}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={nextActionDate}
-                      onSelect={(date) => date && setNextActionDate(date)}
-                      initialFocus
-                    />
-                  </PopoverContent>
-                </Popover>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="nextAction">Next Action *</Label>
+                  <Input
+                    id="nextAction"
+                    value={nextAction}
+                    onChange={(e) => setNextAction(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Next Action Date *</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-start text-left font-normal"
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {nextActionDate ? format(nextActionDate, 'PPP') : 'Pick a date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={nextActionDate}
+                        onSelect={(date) => date && setNextActionDate(date)}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Optional Fields */}
+          {/* Optional Details Section */}
           <Collapsible open={isOptionalOpen} onOpenChange={setIsOptionalOpen}>
             <CollapsibleTrigger asChild>
               <button
@@ -225,7 +246,7 @@ export default function CreateLead() {
                     id="contextNote"
                     value={contextNote}
                     onChange={(e) => setContextNote(e.target.value)}
-                    placeholder="How did you meet? What are they interested in?"
+                    placeholder="Context of how you met..."
                     rows={3}
                   />
                 </div>
@@ -251,7 +272,7 @@ export default function CreateLead() {
                       id="value"
                       value={valueEstimate}
                       onChange={(e) => setValueEstimate(e.target.value)}
-                      placeholder="e.g. $50,000"
+                      placeholder="e.g. $1000"
                     />
                   </div>
                 </div>
@@ -262,14 +283,13 @@ export default function CreateLead() {
                     id="tags"
                     value={tags}
                     onChange={(e) => setTags(e.target.value)}
-                    placeholder="e.g. enterprise, tech, decision-maker"
+                    placeholder="enterprise, referral"
                   />
                 </div>
               </div>
             </CollapsibleContent>
           </Collapsible>
 
-          {/* Submit */}
           <div className="flex gap-4">
             <Button type="submit" size="lg" className="flex-1">
               Save Lead
