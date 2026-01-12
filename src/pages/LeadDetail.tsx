@@ -1,206 +1,153 @@
-import { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useLeads } from '@/contexts/LeadContext';
-import { LeadStatus } from '@/lib/types';
-import { StatusBadge } from '@/components/StatusBadge';
-import { SourceBadge } from '@/components/SourceBadge';
+import { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
-import {
-  ArrowLeft,
-  ExternalLink,
-  CalendarIcon,
-  MessageSquarePlus,
-  Phone,
-  Mail,
-  Lock
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { formatRelativeDate, formatTimestamp, getUrgencyLevel } from '@/lib/date-utils';
+import { ArrowLeft, ExternalLink, CalendarIcon, Loader2, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function LeadDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { getLeadById, updateLead, addNote } = useLeads();
-
-  const lead = getLeadById(id || '');
-
+  const [lead, setLead] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [editedNextAction, setEditedNextAction] = useState(lead?.nextAction || '');
-  const [editedNextActionDate, setEditedNextActionDate] = useState<Date>(
-    lead?.nextActionDate || new Date()
-  );
-  const [editedStatus, setEditedStatus] = useState<LeadStatus>(lead?.status || 'new');
-  const [newNote, setNewNote] = useState('');
 
-  if (!lead) {
-    return (
-      <div className="container py-8 text-center">
-        <h1 className="text-2xl font-bold mb-4">Lead Not Found</h1>
-        <Button asChild><Link to="/dashboard">Back to Dashboard</Link></Button>
-      </div>
-    );
-  }
+  // Edit states
+  const [name, setName] = useState('');
+  const [status, setStatus] = useState('');
+  const [nextActionDate, setNextActionDate] = useState<Date>(new Date());
 
-  // Documentation Rule: Closed/Dropped leads are locked (Read-Only)
-  const isLocked = lead.status === 'closed' || lead.status === 'dropped';
-  const urgency = getUrgencyLevel(lead.nextActionDate);
+  useEffect(() => {
+    async function fetchLeadDetails() {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('leads')
+          .select('*')
+          .eq('id', id)
+          .single();
 
-  const handleSaveChanges = () => {
-    if (isLocked) return;
-    updateLead(lead.id, {
-      nextAction: editedNextAction,
-      nextActionDate: editedNextActionDate,
-      status: editedStatus,
-    });
-    setIsEditing(false);
-    toast.success('Lead updated successfully');
+        if (error) throw error;
+        setLead(data);
+        // Set initial edit values
+        setName(data.name);
+        setStatus(data.status);
+        if (data.next_action_date) setNextActionDate(new Date(data.next_action_date));
+      } catch (err) {
+        console.error("Fetch error:", err);
+        toast.error("Lead not found");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchLeadDetails();
+  }, [id]);
+
+  const handleUpdate = async () => {
+    try {
+      const { error } = await supabase
+        .from('leads')
+        .update({
+          name,
+          status,
+          next_action_date: format(nextActionDate, 'yyyy-MM-dd')
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+      toast.success("Lead updated successfully");
+      setIsEditing(false);
+      setLead({ ...lead, name, status, next_action_date: format(nextActionDate, 'yyyy-MM-dd') });
+    } catch (err: any) {
+      toast.error("Update failed: " + err.message);
+    }
   };
 
-  const handleAddNote = () => {
-    if (!newNote.trim() || isLocked) return;
-    // Documentation Rule: Append-only, timestamped bullet notes
-    addNote(lead.id, newNote.trim());
-    setNewNote('');
-    toast.success('Note added');
-  };
-
-  const contactIsEmail = lead.primaryContact.includes('@');
+  if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin" /></div>;
+  if (!lead) return <div className="p-10 text-center">Lead not found. <Button onClick={() => navigate('/dashboard')}>Back</Button></div>;
 
   return (
-    <div className="container py-8 pb-24 md:pb-8">
-      <div className="max-w-2xl mx-auto">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-muted-foreground mb-6">
-          <ArrowLeft className="h-4 w-4" /> Back
-        </button>
+    <div className="container py-8 max-w-2xl mx-auto">
+      <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 text-muted-foreground mb-6 hover:text-primary">
+        <ArrowLeft className="h-4 w-4" /> Back to Dashboard
+      </button>
 
-        {/* Header */}
-        <div className={cn('p-6 rounded-xl border mb-6 relative', isLocked ? 'bg-muted/50 opacity-90' : 'bg-card')}>
-          {isLocked && (
-            <div className="absolute top-4 right-4 flex items-center gap-1 text-xs font-bold text-muted-foreground uppercase tracking-widest">
-              <Lock className="h-3 w-3" /> Read Only
-            </div>
-          )}
-          
-          <div className="flex items-start justify-between gap-4 mb-4">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-2xl font-bold">{lead.name}</h1>
-                <SourceBadge source={lead.source} showLabel />
-              </div>
-              <StatusBadge status={lead.status} />
-            </div>
-            <a href={lead.linkedinUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-primary text-sm font-medium border p-2 rounded-md hover:bg-primary/5">
-              View LinkedIn <ExternalLink className="h-4 w-4" />
-            </a>
+      <div className="bg-white p-6 rounded-xl border shadow-sm">
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h1 className="text-2xl font-bold">{lead.name}</h1>
+            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs mt-2 inline-block">
+              Source: {lead.source}
+            </span>
           </div>
-
-          <div className="text-sm text-muted-foreground flex gap-4">
-             <span className="flex items-center gap-1.5">
-               {contactIsEmail ? <Mail className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
-               {lead.primaryContact}
-             </span>
-          </div>
+          <a 
+            href={lead.linkedin_url} 
+            target="_blank" 
+            rel="noreferrer" 
+            className="flex items-center gap-2 text-primary hover:underline text-sm font-medium"
+          >
+            LinkedIn Profile <ExternalLink size={14} />
+          </a>
         </div>
 
-        {/* Next Action Card */}
-        <div className={cn(
-          'p-6 rounded-xl border mb-6',
-          !isLocked && urgency === 'overdue' && 'border-l-4 border-l-overdue bg-overdue/5',
-          isLocked && 'bg-muted/30'
-        )}>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold">Follow-up Details</h2>
-            {!isLocked && !isEditing && (
-              <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>Edit Action</Button>
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Contact Info</Label>
+              <p className="p-2 bg-gray-50 rounded border text-sm">{lead.contact}</p>
+            </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              {isEditing ? (
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="New">New</SelectItem>
+                    <SelectItem value="Contacted">Contacted</SelectItem>
+                    <SelectItem value="Interested">Interested</SelectItem>
+                    <SelectItem value="Closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="p-2 bg-gray-50 rounded border text-sm">{lead.status}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Next Action Date</Label>
+            {isEditing ? (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(nextActionDate, 'PPP')}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar mode="single" selected={nextActionDate} onSelect={(d) => d && setNextActionDate(d)} />
+                </PopoverContent>
+              </Popover>
+            ) : (
+              <p className="p-2 bg-gray-50 rounded border text-sm">{lead.next_action_date || 'Not set'}</p>
             )}
           </div>
 
-          {isEditing ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Action Required</Label>
-                <Input value={editedNextAction} onChange={(e) => setEditedNextAction(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Next Action Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full justify-start">
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {format(editedNextActionDate, 'PPP')}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0"><Calendar mode="single" selected={editedNextActionDate} onSelect={(date) => date && setEditedNextActionDate(date)} /></PopoverContent>
-                </Popover>
-              </div>
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select value={editedStatus} onValueChange={(v) => setEditedStatus(v as LeadStatus)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="contacted">Contacted</SelectItem>
-                    <SelectItem value="interested">Interested</SelectItem>
-                    <SelectItem value="follow-up">Follow-up</SelectItem>
-                    <SelectItem value="closed">Closed</SelectItem>
-                    <SelectItem value="dropped">Dropped</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex gap-2">
-                <Button onClick={handleSaveChanges}>Save</Button>
-                <Button variant="ghost" onClick={() => setIsEditing(false)}>Cancel</Button>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <p className="text-lg font-medium">{lead.nextAction}</p>
-              <p className={cn('text-sm font-bold mt-1', urgency === 'overdue' ? 'text-overdue' : 'text-primary')}>
-                {formatRelativeDate(lead.nextActionDate)} ({format(lead.nextActionDate, 'MMM d')})
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Notes Section - Documentation: Append-only */}
-        <div className="p-6 rounded-xl border bg-card shadow-sm">
-          <h2 className="font-semibold mb-4">Conversation Log</h2>
-
-          {!isLocked && (
-            <div className="flex gap-2 mb-6">
-              <Textarea 
-                value={newNote} 
-                onChange={(e) => setNewNote(e.target.value)} 
-                placeholder="Type a bullet point note..." 
-                className="resize-none"
-              />
-              <Button onClick={handleAddNote} disabled={!newNote.trim()} className="self-end"><MessageSquarePlus /></Button>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            {lead.notes.length > 0 ? (
-              [...lead.notes].reverse().map((note) => (
-                <div key={note.id} className="border-l-2 border-primary/30 pl-4 py-1">
-                  <p className="text-sm">• {note.content}</p>
-                  <p className="text-[10px] text-muted-foreground uppercase mt-1">{formatTimestamp(note.createdAt)}</p>
-                </div>
-              ))
-            ) : <p className="text-sm text-muted-foreground">No history available.</p>}
+          <div className="flex gap-3 pt-4">
+            {isEditing ? (
+              <>
+                <Button onClick={handleUpdate} className="flex-1"><Save className="mr-2 h-4 w-4" /> Save Changes</Button>
+                <Button variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
+              </>
+            ) : (
+              <Button onClick={() => setIsEditing(true)} className="flex-1">Edit Lead Details</Button>
+            )}
           </div>
         </div>
       </div>
