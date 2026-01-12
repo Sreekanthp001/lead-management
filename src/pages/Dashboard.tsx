@@ -34,13 +34,16 @@ export default function Dashboard() {
         if (error) throw error;
         
         // Supabase dates are strings, converting them for date-fns compatibility
-        const formattedData = data?.map(lead => ({
-          ...lead,
-          // Database columns names correct ga undali
-          nextActionDate: lead.next_action_date ? new Date(lead.next_action_date) : new Date(),
-          primaryContact: lead.contact || '', // lead.contact from DB -> primaryContact for UI
-          linkedinUrl: lead.linkedin_url // lead.linkedin_url from DB -> linkedinUrl for UI
-        })) || [];
+       const formattedData = data?.map(lead => ({
+        ...lead,
+        id: lead.id,
+        name: lead.name || 'Unknown Name', // null vachina crash avvadu
+        nextActionDate: lead.next_action_date ? new Date(lead.next_action_date) : new Date(),
+        primaryContact: lead.contact || 'No Contact', // database 'contact' ni mapping
+        linkedinUrl: lead.linkedin_url || '#', 
+        status: lead.status || 'New',
+        source: lead.source || 'Other'
+      })) || [];
 
         setLeads(formattedData);
       } catch (error) {
