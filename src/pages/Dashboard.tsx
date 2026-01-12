@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
-import { useLeads } from '@/contexts/LeadContext';
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/lib/supabase'; // Database connection ikkada nundi vastundi
 import { LeadSection } from '@/components/LeadSection';
-import { isToday, isPast, isFuture } from 'date-fns';
-import { AlertCircle, Clock, Zap, CheckCircle2, Search, Filter } from 'lucide-react';
+import { isToday, isPast, isFuture, parseISO } from 'date-fns';
+import { AlertCircle, Clock, Zap, CheckCircle2, Search, Filter, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -13,72 +13,111 @@ import {
 } from '@/components/ui/select';
 
 export default function Dashboard() {
-  const { leads } = useLeads();
+  // Database state
+  const [leads, setLeads] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   
-  // State for Search and Filtering 
+  // Search and Filtering states
   const [searchQuery, setSearchQuery] = useState('');
   const [sourceFilter, setSourceFilter] = useState('all');
 
-  // Logic to apply Search and Filters first
+  // 1. Fetch data from Supabase
+  useEffect(() => {
+    async function fetchLeads() {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('leads')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        
+        // Supabase dates are strings, converting them for date-fns compatibility
+        const formattedData = data?.map(lead => ({
+          ...lead,
+          nextActionDate: lead.next_action_date ? parseISO(lead.next_action_date) : new Date(),
+          primaryContact: lead.contact || '', // database column 'contact' mapping
+          linkedinUrl: lead.linkedin_url // database column mapping
+        })) || [];
+
+        setLeads(formattedData);
+      } catch (error) {
+        console.error("Error fetching leads:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchLeads();
+  }, []);
+
+  // 2. Search and Filters logic
   const filteredLeads = useMemo(() => {
     return leads.filter((lead) => {
-      // Rule: Search by Name, Contact, LinkedIn URL, or Tags 
       const matchesSearch = 
         lead.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         lead.primaryContact.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lead.linkedinUrl.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (lead.tags && lead.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase())));
+        lead.linkedinUrl.toLowerCase().includes(searchQuery.toLowerCase());
 
-      // Rule: Filter by Source (LinkedIn, WhatsApp, etc.) 
-      const matchesSource = sourceFilter === 'all' || lead.source === sourceFilter;
+      const matchesSource = sourceFilter === 'all' || lead.source?.toLowerCase() === sourceFilter.toLowerCase();
 
       return matchesSearch && matchesSource;
     });
   }, [leads, searchQuery, sourceFilter]);
 
-  // Grouping logic based on filtered results
+  // 3. Grouping logic for Sections
   const { overdue, today, upcoming, closed } = useMemo(() => {
     const overdue = filteredLeads.filter(
       (lead) =>
-        !['closed', 'dropped'].includes(lead.status) &&
+        !['closed', 'dropped'].includes(lead.status?.toLowerCase()) &&
         isPast(lead.nextActionDate) &&
         !isToday(lead.nextActionDate)
     ).sort((a, b) => a.nextActionDate.getTime() - b.nextActionDate.getTime());
 
     const today = filteredLeads.filter(
       (lead) =>
-        !['closed', 'dropped'].includes(lead.status) &&
+        !['closed', 'dropped'].includes(lead.status?.toLowerCase()) &&
         isToday(lead.nextActionDate)
     );
 
     const upcoming = filteredLeads.filter(
       (lead) =>
-        !['closed', 'dropped'].includes(lead.status) &&
+        !['closed', 'dropped'].includes(lead.status?.toLowerCase()) &&
         isFuture(lead.nextActionDate) &&
         !isToday(lead.nextActionDate)
     ).sort((a, b) => a.nextActionDate.getTime() - b.nextActionDate.getTime());
 
     const closed = filteredLeads.filter((lead) =>
-      ['closed', 'dropped'].includes(lead.status)
+      ['closed', 'dropped'].includes(lead.status?.toLowerCase())
     );
 
     return { overdue, today, upcoming, closed };
   }, [filteredLeads]);
+
+  if (loading) {
+    return (
+      <div className="flex h-[80vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <span className="ml-2 text-muted-foreground">Fetching leads...</span>
+      </div>
+    );
+  }
 
   return (
     <div className="container py-8 pb-24 md:pb-8">
       <div className="max-w-3xl mx-auto">
         <div className="mb-8">
           <h1 className="text-2xl font-bold tracking-tight">Daily Review</h1>
-          <p className="text-muted-foreground">Focus on your immediate follow-ups [cite: 116, 117]</p>
+          <p className="text-muted-foreground">Focus on your immediate follow-ups</p>
         </div>
 
-        {/* Search & Filter Bar Section  */}
+        {/* Search & Filter Bar */}
         <div className="flex flex-col sm:flex-row gap-4 mb-8">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search name, contact, tags..."
+              placeholder="Search name, contact..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
@@ -94,28 +133,25 @@ export default function Dashboard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Sources</SelectItem>
-                <SelectItem value="linkedin">LinkedIn</SelectItem>
-                <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                <SelectItem value="referral">Referral</SelectItem>
-                <SelectItem value="website">Website</SelectItem>
+                <SelectItem value="LinkedIn">LinkedIn</SelectItem>
+                <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                <SelectItem value="Referral">Referral</SelectItem>
               </SelectContent>
             </Select>
           </div>
         </div>
 
         <div className="space-y-8">
-          {/* Overdue Section - High Priority [cite: 57-59, 68] */}
           {overdue.length > 0 && (
             <LeadSection
               title={`Overdue (${overdue.length})`}
-              icon={<AlertCircle className="h-5 w-5 text-overdue animate-pulse" />}
+              icon={<AlertCircle className="h-5 w-5 text-destructive animate-pulse" />}
               leads={overdue}
               variant="overdue"
               defaultOpen={true}
             />
           )}
 
-          {/* Today's Tasks [cite: 69, 72] */}
           <LeadSection
             title="Today's Tasks"
             icon={<Clock className="h-5 w-5 text-primary" />}
@@ -124,16 +160,14 @@ export default function Dashboard() {
             defaultOpen={true}
           />
 
-          {/* Upcoming Pipeline [cite: 70, 74] */}
           <LeadSection
             title="Upcoming Pipeline"
-            icon={<Zap className="h-5 w-5 text-warning" />}
+            icon={<Zap className="h-5 w-5 text-orange-500" />}
             leads={upcoming}
             variant="active"
             defaultOpen={upcoming.length > 0}
           />
 
-          {/* Archive Section [cite: 75, 96, 97] */}
           {closed.length > 0 && (
             <LeadSection
               title="Archive (Closed/Dropped)"
@@ -153,7 +187,7 @@ export default function Dashboard() {
 
           {leads.length === 0 && (
             <div className="text-center py-20 border-2 border-dashed rounded-2xl">
-              <p className="text-muted-foreground">No leads in the system. Start by adding one from LinkedIn[cite: 114].</p>
+              <p className="text-muted-foreground">No leads in the database. Add some leads to see them here.</p>
             </div>
           )}
         </div>
