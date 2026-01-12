@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/lib/supabase'; // Database connection ikkada nundi vastundi
+import { supabase } from '@/lib/supabase';
 import { LeadSection } from '@/components/LeadSection';
-import { isToday, isPast, isFuture, parseISO } from 'date-fns';
+import { isToday, isPast, isFuture, parseISO, isValid } from 'date-fns';
 import { AlertCircle, Clock, Zap, CheckCircle2, Search, Filter, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import {
@@ -13,15 +13,11 @@ import {
 } from '@/components/ui/select';
 
 export default function Dashboard() {
-  // Database state
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Search and Filtering states
   const [searchQuery, setSearchQuery] = useState('');
   const [sourceFilter, setSourceFilter] = useState('all');
 
-  // 1. Fetch data from Supabase
   useEffect(() => {
     async function fetchLeads() {
       try {
@@ -32,166 +28,100 @@ export default function Dashboard() {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        
-        // Supabase dates are strings, converting them for date-fns compatibility
-       const formattedData = data?.map(lead => ({
-        ...lead,
-        id: lead.id,
-        name: lead.name || 'Unknown Name', // null vachina crash avvadu
-        nextActionDate: lead.next_action_date ? new Date(lead.next_action_date) : new Date(),
-        primaryContact: lead.contact || 'No Contact', // database 'contact' ni mapping
-        linkedinUrl: lead.linkedin_url || '#', 
-        status: lead.status || 'New',
-        source: lead.source || 'Other'
-      })) || [];
+
+        const formattedData = (data || []).map(lead => {
+          // Ensure nextActionDate is always a valid Date object
+          let dateObj = new Date();
+          if (lead.next_action_date) {
+            const parsed = parseISO(lead.next_action_date);
+            if (isValid(parsed)) dateObj = parsed;
+          }
+
+          return {
+            ...lead,
+            id: lead.id,
+            name: lead.name || 'Unnamed Company',
+            nextActionDate: dateObj, // Crucial for date-fns functions
+            primaryContact: lead.contact || 'No Contact Info',
+            linkedinUrl: lead.linkedin_url || '',
+            status: lead.status || 'New',
+            source: lead.source || 'Other',
+            tags: [] // Adding empty array to prevent crashes if LeadSection maps over tags
+          };
+        });
 
         setLeads(formattedData);
       } catch (error) {
-        console.error("Error fetching leads:", error);
+        console.error("Database Error:", error);
       } finally {
         setLoading(false);
       }
     }
-
     fetchLeads();
   }, []);
 
-  // 2. Search and Filters logic
   const filteredLeads = useMemo(() => {
     return leads.filter((lead) => {
-      const matchesSearch = 
-        lead.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lead.primaryContact.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lead.linkedinUrl.toLowerCase().includes(searchQuery.toLowerCase());
+      const name = lead.name?.toLowerCase() || '';
+      const contact = lead.primaryContact?.toLowerCase() || '';
+      const search = searchQuery.toLowerCase();
 
-      const matchesSource = sourceFilter === 'all' || lead.source?.toLowerCase() === sourceFilter.toLowerCase();
+      const matchesSearch = name.includes(search) || contact.includes(search);
+      const matchesSource = sourceFilter === 'all' || lead.source === sourceFilter;
 
       return matchesSearch && matchesSource;
     });
   }, [leads, searchQuery, sourceFilter]);
 
-  // 3. Grouping logic for Sections
   const { overdue, today, upcoming, closed } = useMemo(() => {
-    const overdue = filteredLeads.filter(
-      (lead) =>
-        !['closed', 'dropped'].includes(lead.status?.toLowerCase()) &&
-        isPast(lead.nextActionDate) &&
-        !isToday(lead.nextActionDate)
-    ).sort((a, b) => a.nextActionDate.getTime() - b.nextActionDate.getTime());
-
-    const today = filteredLeads.filter(
-      (lead) =>
-        !['closed', 'dropped'].includes(lead.status?.toLowerCase()) &&
-        isToday(lead.nextActionDate)
-    );
-
-    const upcoming = filteredLeads.filter(
-      (lead) =>
-        !['closed', 'dropped'].includes(lead.status?.toLowerCase()) &&
-        isFuture(lead.nextActionDate) &&
-        !isToday(lead.nextActionDate)
-    ).sort((a, b) => a.nextActionDate.getTime() - b.nextActionDate.getTime());
-
-    const closed = filteredLeads.filter((lead) =>
-      ['closed', 'dropped'].includes(lead.status?.toLowerCase())
-    );
-
-    return { overdue, today, upcoming, closed };
+    const safeLeads = filteredLeads || [];
+    
+    return {
+      overdue: safeLeads.filter(l => !['closed', 'dropped'].includes(l.status.toLowerCase()) && isPast(l.nextActionDate) && !isToday(l.nextActionDate)),
+      today: safeLeads.filter(l => !['closed', 'dropped'].includes(l.status.toLowerCase()) && isToday(l.nextActionDate)),
+      upcoming: safeLeads.filter(l => !['closed', 'dropped'].includes(l.status.toLowerCase()) && isFuture(l.nextActionDate) && !isToday(l.nextActionDate)),
+      closed: safeLeads.filter(l => ['closed', 'dropped'].includes(l.status.toLowerCase()))
+    };
   }, [filteredLeads]);
 
   if (loading) {
     return (
       <div className="flex h-[80vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        <span className="ml-2 text-muted-foreground">Fetching leads...</span>
+        <span className="ml-2">Loading leads...</span>
       </div>
     );
   }
 
   return (
-    <div className="container py-8 pb-24 md:pb-8">
+    <div className="container py-8">
       <div className="max-w-3xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold tracking-tight">Daily Review</h1>
-          <p className="text-muted-foreground">Focus on your immediate follow-ups</p>
+          <h1 className="text-2xl font-bold">Daily Review</h1>
+          <p className="text-muted-foreground">Managing {leads.length} total leads from database.</p>
         </div>
 
-        {/* Search & Filter Bar */}
         <div className="flex flex-col sm:flex-row gap-4 mb-8">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search name, contact..."
+              placeholder="Search leads..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
             />
           </div>
-          <div className="w-full sm:w-48">
-            <Select value={sourceFilter} onValueChange={setSourceFilter}>
-              <SelectTrigger className="w-full">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <SelectValue placeholder="Source" />
-                </div>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sources</SelectItem>
-                <SelectItem value="LinkedIn">LinkedIn</SelectItem>
-                <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                <SelectItem value="Referral">Referral</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </div>
 
         <div className="space-y-8">
-          {overdue.length > 0 && (
-            <LeadSection
-              title={`Overdue (${overdue.length})`}
-              icon={<AlertCircle className="h-5 w-5 text-destructive animate-pulse" />}
-              leads={overdue}
-              variant="overdue"
-              defaultOpen={true}
-            />
-          )}
-
-          <LeadSection
-            title="Today's Tasks"
-            icon={<Clock className="h-5 w-5 text-primary" />}
-            leads={today}
-            variant="today"
-            defaultOpen={true}
-          />
-
-          <LeadSection
-            title="Upcoming Pipeline"
-            icon={<Zap className="h-5 w-5 text-orange-500" />}
-            leads={upcoming}
-            variant="active"
-            defaultOpen={upcoming.length > 0}
-          />
-
-          {closed.length > 0 && (
-            <LeadSection
-              title="Archive (Closed/Dropped)"
-              icon={<CheckCircle2 className="h-5 w-5 text-muted-foreground" />}
-              leads={closed}
-              variant="closed"
-              defaultOpen={false}
-              showUrgency={false}
-            />
-          )}
-
-          {filteredLeads.length === 0 && leads.length > 0 && (
-            <div className="text-center py-10">
-              <p className="text-muted-foreground">No leads match your search criteria.</p>
-            </div>
-          )}
-
+          {overdue.length > 0 && <LeadSection title="Overdue" icon={<AlertCircle className="text-destructive" />} leads={overdue} variant="overdue" />}
+          <LeadSection title="Today" icon={<Clock className="text-primary" />} leads={today} variant="today" />
+          <LeadSection title="Upcoming" icon={<Zap className="text-orange-500" />} leads={upcoming} variant="active" />
+          {closed.length > 0 && <LeadSection title="Archive" icon={<CheckCircle2 />} leads={closed} variant="closed" />}
+          
           {leads.length === 0 && (
-            <div className="text-center py-20 border-2 border-dashed rounded-2xl">
-              <p className="text-muted-foreground">No leads in the database. Add some leads to see them here.</p>
+            <div className="text-center py-20 border-2 border-dashed rounded-xl">
+              <p>No data found in Supabase.</p>
             </div>
           )}
         </div>
