@@ -66,11 +66,18 @@ const App = () => {
             <main className="flex-1 overflow-y-auto p-4 md:p-8">
               <Routes>
                 {/* Landing page ki badulu direct Dashboard ki redirect chesthunnam professional CRM laaga */}
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/create" element={<CreateLead />} />
-                <Route path="/lead/:id" element={<LeadDetail />} />
-                <Route path="*" element={<NotFound />} />
+                // src/App.tsx lo Routes section ni deentho replace cheyandi
+                <Routes>
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/dashboard" element={<Dashboard filter="all" />} />
+                  <Route path="/overdue" element={<Dashboard filter="overdue" />} />
+                  <Route path="/today" element={<Dashboard filter="today" />} />
+                  <Route path="/active" element={<Dashboard filter="active" />} />
+                  <Route path="/closed" element={<Dashboard filter="closed" />} />
+                  <Route path="/create" element={<CreateLead />} />
+                  <Route path="/lead/:id" element={<LeadDetail />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
               </Routes>
             </main>
           </div>
