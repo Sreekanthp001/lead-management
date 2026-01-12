@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Loader2, Search, Plus, Calendar as CalendarIcon, Link as LinkIcon, AlertCircle, Clock } from 'lucide-react';
+import { Loader2, Plus, Calendar as CalendarIcon, Link as LinkIcon, AlertCircle, Clock, Eye, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
@@ -11,17 +11,12 @@ interface DashboardProps {
 export default function Dashboard({ filter = 'all' }: DashboardProps) {
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
 
   const fetchLeads = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('leads')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
+      const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       setLeads(data || []);
     } catch (err) {
@@ -38,33 +33,19 @@ export default function Dashboard({ filter = 'all' }: DashboardProps) {
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  // Core Filtering Logic to fix 404 behavior
+  // Filter Logic
   const getFilteredData = () => {
-    let baseLeads = [...leads];
-
-    if (filter === 'overdue') {
-      return baseLeads.filter(l => l.next_action_date && l.next_action_date < todayStr && l.status !== 'Closed');
-    }
-    if (filter === 'today') {
-      return baseLeads.filter(l => l.next_action_date === todayStr);
-    }
-    if (filter === 'active') {
-      return baseLeads.filter(l => l.status !== 'Closed' && l.status !== 'Dropped');
-    }
-    if (filter === 'closed') {
-      return baseLeads.filter(l => l.status === 'Closed' || l.status === 'Dropped');
-    }
-    return baseLeads; // 'all' case
+    if (filter === 'overdue') return leads.filter(l => l.next_action_date && l.next_action_date < todayStr && l.status !== 'Closed');
+    if (filter === 'today') return leads.filter(l => l.next_action_date === todayStr);
+    if (filter === 'active') return leads.filter(l => l.status !== 'Closed' && l.status !== 'Dropped');
+    if (filter === 'closed') return leads.filter(l => l.status === 'Closed' || l.status === 'Dropped');
+    return leads;
   };
 
-  const displayLeads = getFilteredData().filter(l => 
-    (l.name || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Status-wise groupings for the main Dashboard view
+  const displayLeads = getFilteredData();
   const overdueLeads = displayLeads.filter(l => l.next_action_date && l.next_action_date < todayStr && l.status !== 'Closed');
   const todayLeads = displayLeads.filter(l => l.next_action_date === todayStr);
-  const regularLeads = displayLeads.filter(l => l.next_action_date > todayStr || !l.next_action_date || l.status === 'Closed');
+  const regularLeads = displayLeads.filter(l => l.next_action_date > todayStr || !l.next_action_date || l.status === 'Closed' || l.status === 'Dropped');
 
   if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
 
@@ -72,94 +53,86 @@ export default function Dashboard({ filter = 'all' }: DashboardProps) {
     <div className="max-w-6xl mx-auto space-y-8 p-2">
       <header className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 capitalize">{filter} Leads</h1>
-          <p className="text-sm text-muted-foreground">{displayLeads.length} leads in this view</p>
+          <h1 className="text-3xl font-bold text-gray-900 capitalize">{filter} Dashboard</h1>
+          <p className="text-sm text-muted-foreground">{displayLeads.length} leads total</p>
         </div>
-        <button 
-          onClick={() => navigate('/create')} 
-          className="bg-primary text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:opacity-90 font-semibold shadow-sm"
-        >
-          <Plus size={18} /> Add Lead
+        <button onClick={() => navigate('/create')} className="bg-primary text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:opacity-90 font-bold shadow-md">
+          <Plus size={20} /> Add Lead
         </button>
       </header>
 
-      {/* Main Dashboard Section */}
-      <div className="space-y-8">
-        {/* Overdue Section */}
-        {(filter === 'all' || filter === 'overdue') && overdueLeads.length > 0 && (
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-red-600 font-bold">
-              <AlertCircle size={20} /> Overdue <span className="bg-red-100 px-2 py-0.5 rounded-full text-xs">{overdueLeads.length}</span>
-            </div>
-            {overdueLeads.map(lead => (
-              <LeadCard key={lead.id} lead={lead} type="overdue" onClick={() => navigate(`/lead/${lead.id}`)} />
-            ))}
-          </section>
-        )}
+      {/* Overdue Section */}
+      {(filter === 'all' || filter === 'overdue') && overdueLeads.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-red-600 font-bold">
+            <AlertCircle size={20} /> Overdue <span className="bg-red-100 px-2 py-0.5 rounded-full text-xs">{overdueLeads.length}</span>
+          </div>
+          {overdueLeads.map(lead => <LeadCard key={lead.id} lead={lead} type="overdue" />)}
+        </div>
+      )}
 
-        {/* Today's Follow-ups Section */}
-        {(filter === 'all' || filter === 'today') && todayLeads.length > 0 && (
-          <section className="space-y-4">
-            <div className="flex items-center gap-2 text-orange-600 font-bold">
-              <Clock size={20} /> Today's Follow-ups <span className="bg-orange-100 px-2 py-0.5 rounded-full text-xs">{todayLeads.length}</span>
-            </div>
-            {todayLeads.map(lead => (
-              <LeadCard key={lead.id} lead={lead} type="today" onClick={() => navigate(`/lead/${lead.id}`)} />
-            ))}
-          </section>
-        )}
+      {/* Today Section */}
+      {(filter === 'all' || filter === 'today') && todayLeads.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-orange-500 font-bold">
+            <Clock size={20} /> Today's Follow-ups <span className="bg-orange-100 px-2 py-0.5 rounded-full text-xs">{todayLeads.length}</span>
+          </div>
+          {todayLeads.map(lead => <LeadCard key={lead.id} lead={lead} type="today" />)}
+        </div>
+      )}
 
-        {/* General/Active Section */}
-        {(filter !== 'overdue' && filter !== 'today') && (
-          <section className="space-y-4 pt-4 border-t">
-            <h2 className="text-lg font-semibold text-gray-700">Leads List</h2>
-            {regularLeads.length > 0 ? (
-              regularLeads.map(lead => (
-                <LeadCard key={lead.id} lead={lead} type="normal" onClick={() => navigate(`/lead/${lead.id}`)} />
-              ))
-            ) : (
-              filter === 'all' && overdueLeads.length === 0 && todayLeads.length === 0 && (
-                <p className="text-muted-foreground text-sm">No leads found.</p>
-              )
-            )}
-          </section>
-        )}
-      </div>
+      {/* Others Section */}
+      {regularLeads.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold text-gray-700">All Leads</h2>
+          {regularLeads.map(lead => <LeadCard key={lead.id} lead={lead} type="normal" />)}
+        </div>
+      )}
     </div>
   );
 }
 
-function LeadCard({ lead, type, onClick }: any) {
-  const borderColors: any = {
-    overdue: "border-l-red-500",
-    today: "border-l-orange-500",
-    normal: "border-l-blue-400"
+function LeadCard({ lead, type }: any) {
+  const navigate = useNavigate();
+  const colors: any = {
+    overdue: "border-l-red-500 bg-red-50/30",
+    today: "border-l-blue-500 bg-blue-50/30",
+    normal: "border-l-gray-300 bg-white"
   };
 
   return (
-    <div 
-      onClick={onClick}
-      className={`bg-white border-y border-r border-l-4 ${borderColors[type]} rounded-r-xl p-5 shadow-sm hover:shadow-md transition-all cursor-pointer group mb-3`}
-    >
+    <div className={`border rounded-xl p-5 shadow-sm transition-all hover:shadow-md ${colors[type]} border-l-4 mb-4`}>
       <div className="flex justify-between items-start">
-        <div className="space-y-2">
+        <div className="space-y-3 flex-1">
           <div className="flex items-center gap-3">
-            <h3 className="font-bold text-lg group-hover:text-primary transition-colors">{lead.name}</h3>
-            {type === 'overdue' && <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full uppercase font-black">Overdue</span>}
-            {type === 'today' && <span className="bg-blue-600 text-white text-[10px] px-2 py-0.5 rounded-full uppercase font-black">Today</span>}
+            <h3 className="font-bold text-xl text-gray-900">{lead.name}</h3>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-black uppercase text-white ${type === 'overdue' ? 'bg-red-500' : 'bg-blue-600'}`}>
+              {type === 'overdue' ? 'Overdue' : type === 'today' ? 'Today' : lead.status}
+            </span>
           </div>
-          <div className="flex gap-3 items-center text-xs">
-            <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded font-semibold">{lead.status}</span>
-            <span className="text-muted-foreground flex items-center gap-1 italic">
+          
+          <div className="flex flex-wrap gap-2">
+            <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold">{lead.status}</span>
+            <span className="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
               <LinkIcon size={12} /> {lead.source}
             </span>
           </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500 mt-2">
-            <CalendarIcon size={14} />
-            <span>Next action: <b>{lead.next_action_date || 'Not scheduled'}</b></span>
+
+          <div className="text-sm text-gray-600 space-y-1">
+            <p className="flex items-center gap-2 font-medium text-primary">
+               → {lead.last_note || "Follow up with client"}
+            </p>
+            <p className="flex items-center gap-2 text-muted-foreground">
+              <CalendarIcon size={14} /> {lead.next_action_date}
+            </p>
           </div>
         </div>
-        <button className="text-xs font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">VIEW DETAILS →</button>
+
+        <div className="flex gap-2">
+          <button onClick={() => navigate(`/lead/${lead.id}`)} className="p-2 hover:bg-white rounded-full text-blue-600 border shadow-sm">
+            <Eye size={18} />
+          </button>
+        </div>
       </div>
     </div>
   );
