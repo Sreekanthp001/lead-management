@@ -12,6 +12,28 @@ import LeadDetail from "./pages/LeadDetail";
 import NotFound from "./pages/NotFound";
 import Sidebar from "./components/Sidebar";
 
+// App.tsx logic
+const App = () => {
+  useEffect(() => {
+    const updateTheme = () => {
+      const hour = new Date().getHours();
+      const isDayTime = hour >= 6 && hour < 18; // Morning 6 to Evening 6
+
+      if (isDayTime) {
+        document.documentElement.classList.remove('dark');
+      } else {
+        document.documentElement.classList.add('dark');
+      }
+    };
+
+    updateTheme(); // Initial check
+    const interval = setInterval(updateTheme, 60000); // Every minute check
+    return () => clearInterval(interval);
+  }, []);
+
+  // ... rest of your App.tsx code
+}
+
 const queryClient = new QueryClient();
 
 const App = () => {
