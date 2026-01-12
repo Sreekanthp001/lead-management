@@ -17,25 +17,12 @@ const queryClient = new QueryClient();
 const App = () => {
   const [counts, setCounts] = useState({ all: 0, overdue: 0, today: 0, active: 0, closed: 0 });
 
-  // 1. Team Theme Logic (Morning 6 to Evening 6)
+  // Simplified: No more automatic theme colors
   useEffect(() => {
-    const updateTheme = () => {
-      const hour = new Date().getHours();
-      const isDayTime = hour >= 6 && hour < 18;
-
-      if (isDayTime) {
-        document.documentElement.classList.remove('dark');
-      } else {
-        document.documentElement.classList.add('dark');
-      }
-    };
-
-    updateTheme();
-    const interval = setInterval(updateTheme, 60000);
-    return () => clearInterval(interval);
+    // Resetting to default light theme
+    document.documentElement.classList.remove('dark');
   }, []);
 
-  // 2. Database Stats Logic
   useEffect(() => {
     async function updateStats() {
       const { data: leads } = await supabase.from('leads').select('*');
@@ -62,8 +49,8 @@ const App = () => {
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          {/* Main Container - bg-gray-50 dark:bg-slate-950 and transition for smooth theme change */}
-          <div className="flex h-screen bg-gray-50 dark:bg-slate-950 transition-colors duration-500 overflow-hidden">
+          {/* Back to professional gray/white background */}
+          <div className="flex h-screen bg-gray-50 overflow-hidden">
             <Sidebar counts={counts} />
             <main className="flex-1 overflow-y-auto p-4 md:p-8">
               <Routes>
