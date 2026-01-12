@@ -36,9 +36,10 @@ export default function Dashboard() {
         // Supabase dates are strings, converting them for date-fns compatibility
         const formattedData = data?.map(lead => ({
           ...lead,
-          nextActionDate: lead.next_action_date ? parseISO(lead.next_action_date) : new Date(),
-          primaryContact: lead.contact || '', // database column 'contact' mapping
-          linkedinUrl: lead.linkedin_url // database column mapping
+          // Database columns names correct ga undali
+          nextActionDate: lead.next_action_date ? new Date(lead.next_action_date) : new Date(),
+          primaryContact: lead.contact || '', // lead.contact from DB -> primaryContact for UI
+          linkedinUrl: lead.linkedin_url // lead.linkedin_url from DB -> linkedinUrl for UI
         })) || [];
 
         setLeads(formattedData);
