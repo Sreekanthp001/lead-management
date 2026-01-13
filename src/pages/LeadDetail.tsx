@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { 
   ArrowLeft, Calendar, Link2, FileText, Paperclip, 
   ExternalLink, Clock, User, Briefcase, ChevronRight,
-  Upload, Loader2, Trash2
+  Upload, Loader2, Send, MessageSquare
 } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -15,18 +15,49 @@ export default function LeadDetails() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [lead, setLead] = useState<any>(null);
+  const [notes, setNotes] = useState<any[]>([]); // New state for multi-notes
+  const [newNote, setNewNote] = useState(''); // New state for input
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [sendingNote, setSendingNote] = useState(false);
 
   useEffect(() => {
-    fetchLeadDetails();
+    fetchLeadData();
   }, [id]);
 
-  const fetchLeadDetails = async () => {
+  const fetchLeadData = async () => {
     setLoading(true);
-    const { data } = await supabase.from('leads').select('*').eq('id', id).single();
-    setLead(data);
+    // 1. Fetch Lead Details
+    const { data: leadData } = await supabase.from('leads').select('*').eq('id', id).single();
+    
+    // 2. Fetch Related Notes from lead_notes table
+    const { data: notesData } = await supabase
+      .from('lead_notes')
+      .select('*')
+      .eq('lead_id', id)
+      .order('created_at', { ascending: false });
+
+    setLead(leadData);
+    setNotes(notesData || []);
     setLoading(false);
+  };
+
+  // Note saving function
+  const handleAddNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newNote.trim()) return;
+
+    setSendingNote(true);
+    const { data, error } = await supabase
+      .from('lead_notes')
+      .insert([{ lead_id: id, content: newNote.trim() }])
+      .select();
+
+    if (!error && data) {
+      setNotes([data[0], ...notes]);
+      setNewNote('');
+    }
+    setSendingNote(false);
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -35,19 +66,16 @@ export default function LeadDetails() {
       const file = event.target.files?.[0];
       if (!file) return;
 
-      // 1. Unique path create cheyyali (e.g., lead-id/timestamp-filename)
       const fileExt = file.name.split('.').pop();
       const fileName = `${id}/${Math.random()}.${fileExt}`;
       const filePath = `${fileName}`;
 
-      // 2. Supabase Storage ki upload
       const { error: uploadError } = await supabase.storage
         .from('lead-documents')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      // 3. File URL ni lead record lo update cheyyali
       const { data: { publicUrl } } = supabase.storage
         .from('lead-documents')
         .getPublicUrl(filePath);
@@ -59,8 +87,7 @@ export default function LeadDetails() {
 
       if (updateError) throw updateError;
 
-      // Refresh data
-      fetchLeadDetails();
+      fetchLeadData();
       alert("File uploaded successfully!");
 
     } catch (error: any) {
@@ -125,11 +152,11 @@ export default function LeadDetails() {
                             <ExternalLink size={16} className="text-slate-300 group-hover:text-[#00a389]" />
                         </a>
                     )}
-                    {lead.social_link && (
-                        <a href={lead.social_link} target="_blank" rel="noreferrer" className="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:border-[#00a389] transition-all group">
+                    {lead.linkedin_url && (
+                        <a href={lead.linkedin_url} target="_blank" rel="noreferrer" className="flex items-center justify-between p-5 rounded-3xl bg-slate-50 border border-slate-100 hover:border-[#00a389] transition-all group">
                             <div className="flex items-center gap-3">
                                 <User className="text-blue-500" />
-                                <span className="font-black text-sm text-slate-700">LinkedIn / Social</span>
+                                <span className="font-black text-sm text-slate-700">LinkedIn Profile</span>
                             </div>
                             <ExternalLink size={16} className="text-slate-300 group-hover:text-blue-500" />
                         </a>
@@ -137,29 +164,47 @@ export default function LeadDetails() {
                 </div>
             </div>
 
-            {/* Interaction Timeline */}
+            {/* Step 1: Interaction Timeline (Activity Notes) */}
             <div className="space-y-6">
                 <h2 className="text-xl font-black text-slate-800 flex items-center gap-2 px-4">
-                    <Clock className="text-[#00a389]" /> Interaction Timeline
+                    <MessageSquare className="text-[#00a389]" /> Activity Notes
                 </h2>
                 
+                {/* Note Input Box */}
+                <form onSubmit={handleAddNote} className="relative group">
+                  <textarea 
+                    value={newNote}
+                    onChange={(e) => setNewNote(e.target.value)}
+                    placeholder="Type what happened in the meeting..."
+                    className="w-full p-8 bg-white rounded-[2.5rem] border border-slate-100 shadow-sm focus:ring-4 focus:ring-[#00a389]/5 outline-none font-bold text-slate-600 min-h-[150px] transition-all"
+                  />
+                  <button 
+                    disabled={sendingNote || !newNote.trim()}
+                    className="absolute bottom-6 right-6 bg-[#00a389] text-white p-4 rounded-2xl shadow-lg shadow-[#00a389]/20 hover:scale-110 active:scale-95 transition-all disabled:opacity-30 disabled:hover:scale-100"
+                  >
+                    {sendingNote ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
+                  </button>
+                </form>
+
+                {/* Dynamic Notes List */}
                 <div className="space-y-4">
-                    {lead.meeting_notes ? (
-                        <div className="relative pl-8 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200">
-                            <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 relative">
-                                <div className="absolute -left-[27px] top-8 w-4 h-4 rounded-full bg-[#00a389] border-4 border-[#f8fafc]" />
-                                <div className="flex items-center gap-2 mb-4 text-[#00a389]">
-                                    <FileText size={18} />
-                                    <span className="text-xs font-black uppercase tracking-widest">Meeting Notes</span>
-                                </div>
-                                <div className="text-slate-600 font-bold whitespace-pre-wrap leading-relaxed text-lg">
-                                    {lead.meeting_notes}
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
+                    {notes.map((note) => (
+                      <div key={note.id} className="relative pl-8 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200">
+                          <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 relative">
+                              <div className="absolute -left-[27px] top-6 w-4 h-4 rounded-full bg-[#00a389] border-4 border-[#f8fafc]" />
+                              <p className="text-slate-600 font-bold whitespace-pre-wrap leading-relaxed">
+                                  {note.content}
+                              </p>
+                              <div className="mt-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                <Clock size={12} /> {new Date(note.created_at).toLocaleString()}
+                              </div>
+                          </div>
+                      </div>
+                    ))}
+
+                    {notes.length === 0 && (
                         <div className="text-center p-10 bg-slate-100 rounded-[2rem] border-2 border-dashed border-slate-200 text-slate-400 font-bold">
-                            No meeting notes added yet.
+                            No activity notes yet. Start by adding one above!
                         </div>
                     )}
                 </div>
@@ -177,7 +222,7 @@ export default function LeadDetails() {
                 <p className="text-slate-500 text-sm font-bold">Stay updated for Venturemond progress.</p>
             </div>
 
-            {/* Documents Section with Upload Logic */}
+            {/* Documents Section */}
             <div className="bg-white p-8 rounded-[3rem] shadow-xl shadow-slate-200/50 border border-slate-100">
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
@@ -210,7 +255,7 @@ export default function LeadDetails() {
                         >
                             <div className="flex items-center gap-3 overflow-hidden">
                                 <FileText className="text-[#00a389] shrink-0" size={18} />
-                                <span className="font-black text-sm text-slate-700 truncate">Lead Proposal / Doc</span>
+                                <span className="font-black text-sm text-slate-700 truncate">View Proposal / Doc</span>
                             </div>
                             <ChevronRight size={18} className="text-slate-300 group-hover:text-[#00a389]" />
                         </a>
