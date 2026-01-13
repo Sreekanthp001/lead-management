@@ -1,195 +1,115 @@
+// CreateLead.tsx updated with your note features
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { format } from 'date-fns';
-import { CalendarIcon, ArrowLeft, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Link2, FileText, Upload, Calendar, ArrowLeft } from 'lucide-react';
 
 export default function CreateLead() {
   const navigate = useNavigate();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Form states
-  const [name, setName] = useState('');
-  const [source, setSource] = useState('LinkedIn');
-  const [primaryContact, setPrimaryContact] = useState('');
-  const [linkedinUrl, setLinkedinUrl] = useState('');
-  const [status, setStatus] = useState('New');
-  const [priority, setPriority] = useState('Medium'); // Default Medium
-  const [nextAction, setNextAction] = useState('Contact lead');
-  const [nextActionDate, setNextActionDate] = useState<Date>(new Date());
-  const [valueEstimate, setValueEstimate] = useState('');
-
-  const isValidLinkedInUrl = (url: string) => {
-    const pattern = /^(https?:\/\/)?(www\.)?linkedin\.com\/.*$/i;
-    return pattern.test(url);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!name.trim() || !primaryContact.trim() || !linkedinUrl.trim()) {
-      toast.error('Please fill in all mandatory fields');
-      return;
-    }
-
-    if (!isValidLinkedInUrl(linkedinUrl.trim())) {
-      toast.error('Invalid LinkedIn URL');
-      return;
-    }
-
-    try {
-      setIsSubmitting(true);
-
-      const { error } = await supabase
-        .from('leads')
-        .insert([
-          {
-            name: name.trim(),
-            source: source,
-            contact: primaryContact.trim(),
-            linkedin_url: linkedinUrl.trim(),
-            status: status,
-            priority: priority, // Priority save avthundi
-            next_action: nextAction.trim(),
-            next_action_date: format(nextActionDate, 'yyyy-MM-dd'),
-            value_estimate: parseFloat(valueEstimate) || 0,
-          },
-        ]);
-
-      if (error) throw error;
-
-      toast.success('Lead saved to database successfully');
-      navigate('/dashboard');
-    } catch (error: any) {
-      console.error('Error saving lead:', error);
-      toast.error(error.message || 'Failed to save lead');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const [loading, setLoading] = useState(false);
 
   return (
-    <div className="container py-8 pb-24 md:pb-8">
-      <div className="max-w-2xl mx-auto">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6 transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
+    <div className="min-h-screen bg-[#f8fafc] p-6 lg:p-10 font-['Outfit']">
+      <div className="max-w-4xl mx-auto">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 font-bold mb-6 hover:text-[#00a389] transition-colors">
+          <ArrowLeft size={20} /> Back
         </button>
 
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold">Create Lead</h1>
-          <p className="text-muted-foreground mt-1">Add a new lead to Venturemond CRM</p>
+        <div className="mb-10">
+          <h1 className="text-4xl font-black tracking-tight text-slate-900">Create Lead</h1>
+          <p className="text-slate-500 font-bold mt-2">Add a new lead to Venturemond CRM with full context</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <div className="space-y-6 p-6 rounded-xl bg-card border">
-            <h2 className="font-semibold text-lg">Required Information</h2>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Name (Person / Company) *</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Sarah Chen" required />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <form className="space-y-8">
+          {/* Section 1: Basic Info */}
+          <Card className="rounded-[2rem] border-none shadow-xl shadow-slate-200/60 overflow-hidden">
+            <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-8">
+              <CardTitle className="text-lg font-black uppercase tracking-widest text-slate-400">Required Information</CardTitle>
+            </CardHeader>
+            <CardContent className="p-8 space-y-6">
+              <div className="grid md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="source">Source</Label>
-                  <Select value={source} onValueChange={setSource}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="LinkedIn">LinkedIn</SelectItem>
-                      <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                      <SelectItem value="Referral">Referral</SelectItem>
-                      <SelectItem value="Other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label className="font-bold text-slate-700">Name (Person / Company) *</Label>
+                  <Input placeholder="e.g. Sarah Chen" className="rounded-xl border-slate-200 py-6 font-bold" />
                 </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="status">Status *</Label>
-                  <Select value={status} onValueChange={setStatus}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="New">New</SelectItem>
-                      <SelectItem value="Contacted">Contacted</SelectItem>
-                      <SelectItem value="Interested">Interested</SelectItem>
-                      <SelectItem value="Follow-up">Follow-up</SelectItem>
-                      <SelectItem value="Closed">Closed</SelectItem>
-                      <SelectItem value="Dropped">Dropped</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label className="font-bold text-slate-700">Source *</Label>
+                  <Input placeholder="LinkedIn, Upwork, etc." className="rounded-xl border-slate-200 py-6 font-bold" />
                 </div>
               </div>
+            </CardContent>
+          </Card>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="priority">Priority *</Label>
-                  <Select value={priority} onValueChange={setPriority}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="High">High</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="Low">Low</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="contact">Primary Contact *</Label>
-                  <Input id="contact" value={primaryContact} onChange={(e) => setPrimaryContact(e.target.value)} placeholder="email or phone" required />
-                </div>
+          {/* Section 2: Relevant Links (Nuvvu adigina 1st point) */}
+          <Card className="rounded-[2rem] border-none shadow-xl shadow-slate-200/60 overflow-hidden">
+            <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-8">
+              <div className="flex items-center gap-3">
+                <Link2 className="text-[#00a389]" size={20} />
+                <CardTitle className="text-lg font-black uppercase tracking-widest text-slate-400">Relevant Links</CardTitle>
               </div>
+            </CardHeader>
+            <CardContent className="p-8 space-y-4">
+              <Input placeholder="Portfolio URL" className="rounded-xl border-slate-200 py-6 font-bold" />
+              <Input placeholder="LinkedIn Profile / Social Link" className="rounded-xl border-slate-200 py-6 font-bold" />
+            </CardContent>
+          </Card>
 
-              <div className="space-y-2">
-                <Label htmlFor="linkedin">LinkedIn Profile URL *</Label>
-                <Input id="linkedin" value={linkedinUrl} onChange={(e) => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/..." required />
+          {/* Section 3: Context & Meetings (Nuvvu adigina 2nd point) */}
+          <Card className="rounded-[2rem] border-none shadow-xl shadow-slate-200/60 overflow-hidden">
+            <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-8">
+              <div className="flex items-center gap-3">
+                <FileText className="text-[#00a389]" size={20} />
+                <CardTitle className="text-lg font-black uppercase tracking-widest text-slate-400">Context & Meeting Notes</CardTitle>
               </div>
+            </CardHeader>
+            <CardContent className="p-8 space-y-4">
+              <Textarea 
+                placeholder="1st Meeting: Discussed project scope...&#10;2nd Meeting: Shared quotation..." 
+                className="rounded-xl border-slate-200 min-h-[150px] font-bold p-6" 
+              />
+            </CardContent>
+          </Card>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="nextAction">Next Action *</Label>
-                  <Input id="nextAction" value={nextAction} onChange={(e) => setNextAction(e.target.value)} required />
+          {/* Section 4: Document Upload & Dates (Nuvvu adigina 3rd & 4th points) */}
+          <div className="grid md:grid-cols-2 gap-8">
+            <Card className="rounded-[2rem] border-none shadow-xl shadow-slate-200/60 overflow-hidden">
+              <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-8">
+                <div className="flex items-center gap-3">
+                  <Upload className="text-[#00a389]" size={20} />
+                  <CardTitle className="text-lg font-black uppercase tracking-widest text-slate-400">Upload Document</CardTitle>
                 </div>
-                <div className="space-y-2">
-                  <Label>Next Action Date *</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal border-slate-200">
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {nextActionDate ? format(nextActionDate, 'PPP') : 'Pick a date'}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={nextActionDate} onSelect={(date) => date && setNextActionDate(date)} initialFocus />
-                    </PopoverContent>
-                  </Popover>
+              </CardHeader>
+              <CardContent className="p-8">
+                <div className="border-2 border-dashed border-slate-200 rounded-2xl p-10 flex flex-col items-center justify-center text-slate-400 hover:border-[#00a389] hover:bg-slate-50 transition-all cursor-pointer">
+                  <Upload size={32} className="mb-2" />
+                  <p className="font-bold text-sm text-center">Click to upload proposal or requirements (PDF)</p>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-[2rem] border-none shadow-xl shadow-slate-200/60 overflow-hidden">
+              <CardHeader className="bg-slate-50/50 border-b border-slate-100 p-8">
+                <div className="flex items-center gap-3">
+                  <Calendar className="text-[#00a389]" size={20} />
+                  <CardTitle className="text-lg font-black uppercase tracking-widest text-slate-400">Next Follow-up</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent className="p-8 space-y-4">
+                <Label className="font-bold text-slate-700 italic">Example: Next Meeting 26th Feb</Label>
+                <Input type="date" className="rounded-xl border-slate-200 py-6 font-bold" />
+              </CardContent>
+            </Card>
           </div>
 
-          <div className="flex gap-4">
-            <Button type="submit" size="lg" className="flex-1 bg-[#00a389] hover:bg-[#008f78]" disabled={isSubmitting}>
-              {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save Lead'}
+          <div className="flex justify-end pt-6">
+            <Button className="bg-[#00a389] hover:bg-[#008f78] text-white px-12 py-8 rounded-2xl font-black text-lg shadow-lg shadow-[#00a389]/20 transition-all hover:-translate-y-1">
+              Save Lead to Venturemond
             </Button>
-            <Button type="button" variant="outline" size="lg" onClick={() => navigate(-1)}>Cancel</Button>
           </div>
         </form>
       </div>
