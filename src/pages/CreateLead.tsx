@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase'; // Import Supabase client
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,21 +12,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
-import { CalendarIcon, ChevronDown, ArrowLeft, Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { CalendarIcon, ArrowLeft, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function CreateLead() {
   const navigate = useNavigate();
-  const [isOptionalOpen, setIsOptionalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form states
@@ -35,10 +28,9 @@ export default function CreateLead() {
   const [primaryContact, setPrimaryContact] = useState('');
   const [linkedinUrl, setLinkedinUrl] = useState('');
   const [status, setStatus] = useState('New');
+  const [priority, setPriority] = useState('Medium'); // Default Medium
   const [nextAction, setNextAction] = useState('Contact lead');
   const [nextActionDate, setNextActionDate] = useState<Date>(new Date());
-  const [contextNote, setContextNote] = useState('');
-  const [priority, setPriority] = useState('Medium');
   const [valueEstimate, setValueEstimate] = useState('');
 
   const isValidLinkedInUrl = (url: string) => {
@@ -62,19 +54,18 @@ export default function CreateLead() {
     try {
       setIsSubmitting(true);
 
-      // Save to Supabase
       const { error } = await supabase
         .from('leads')
         .insert([
           {
             name: name.trim(),
             source: source,
-            contact: primaryContact.trim(), // Maps to 'contact' in DB
-            linkedin_url: linkedinUrl.trim(), // Maps to 'linkedin_url' in DB
+            contact: primaryContact.trim(),
+            linkedin_url: linkedinUrl.trim(),
             status: status,
+            priority: priority, // Priority save avthundi
             next_action: nextAction.trim(),
             next_action_date: format(nextActionDate, 'yyyy-MM-dd'),
-            priority: priority,
             value_estimate: parseFloat(valueEstimate) || 0,
           },
         ]);
@@ -109,7 +100,7 @@ export default function CreateLead() {
 
         <form onSubmit={handleSubmit} className="space-y-8">
           <div className="space-y-6 p-6 rounded-xl bg-card border">
-            <h2 className="font-semibold">Required Information</h2>
+            <h2 className="font-semibold text-lg">Required Information</h2>
 
             <div className="space-y-4">
               <div className="space-y-2">
@@ -139,15 +130,31 @@ export default function CreateLead() {
                       <SelectItem value="New">New</SelectItem>
                       <SelectItem value="Contacted">Contacted</SelectItem>
                       <SelectItem value="Interested">Interested</SelectItem>
+                      <SelectItem value="Follow-up">Follow-up</SelectItem>
                       <SelectItem value="Closed">Closed</SelectItem>
+                      <SelectItem value="Dropped">Dropped</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="contact">Primary Contact *</Label>
-                <Input id="contact" value={primaryContact} onChange={(e) => setPrimaryContact(e.target.value)} placeholder="email or phone" required />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="priority">Priority *</Label>
+                  <Select value={priority} onValueChange={setPriority}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="High">High</SelectItem>
+                      <SelectItem value="Medium">Medium</SelectItem>
+                      <SelectItem value="Low">Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="contact">Primary Contact *</Label>
+                  <Input id="contact" value={primaryContact} onChange={(e) => setPrimaryContact(e.target.value)} placeholder="email or phone" required />
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -164,7 +171,7 @@ export default function CreateLead() {
                   <Label>Next Action Date *</Label>
                   <Popover>
                     <PopoverTrigger asChild>
-                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                      <Button variant="outline" className="w-full justify-start text-left font-normal border-slate-200">
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {nextActionDate ? format(nextActionDate, 'PPP') : 'Pick a date'}
                       </Button>
@@ -179,7 +186,7 @@ export default function CreateLead() {
           </div>
 
           <div className="flex gap-4">
-            <Button type="submit" size="lg" className="flex-1" disabled={isSubmitting}>
+            <Button type="submit" size="lg" className="flex-1 bg-[#00a389] hover:bg-[#008f78]" disabled={isSubmitting}>
               {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : 'Save Lead'}
             </Button>
             <Button type="button" variant="outline" size="lg" onClick={() => navigate(-1)}>Cancel</Button>

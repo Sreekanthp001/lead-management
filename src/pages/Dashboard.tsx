@@ -1,12 +1,14 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Loader2, Search, Plus, ExternalLink, Calendar, Filter } from 'lucide-react';
+import { Loader2, Search, Plus, Calendar, Filter, ChevronDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Dashboard({ filter = 'all' }: { filter?: string }) {
   const [allLeads, setAllLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All Statuses');
+  const [priorityFilter, setPriorityFilter] = useState('All Priorities');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -19,11 +21,11 @@ export default function Dashboard({ filter = 'all' }: { filter?: string }) {
     fetchLeads();
   }, []);
 
-  // Performance Optimization: Filtering in-memory
   const filteredLeads = useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
     let list = [...allLeads];
 
+    // Sidebar Category Filter
     if (filter === 'overdue') {
       list = list.filter(l => l.next_action_date && l.next_action_date < todayStr && l.status !== 'Closed');
     } else if (filter === 'today' || filter === 'followups') {
@@ -34,37 +36,40 @@ export default function Dashboard({ filter = 'all' }: { filter?: string }) {
       list = list.filter(l => l.status === 'Closed' || l.status === 'Dropped');
     }
 
+    // New Dropdown Filters (Under Add Lead)
+    if (statusFilter !== 'All Statuses') {
+      list = list.filter(l => l.status === statusFilter);
+    }
+    
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      list = list.filter(l => 
-        (l.name || '').toLowerCase().includes(q) || 
-        (l.company || '').toLowerCase().includes(q)
-      );
+      list = list.filter(l => (l.name || '').toLowerCase().includes(q) || (l.company || '').toLowerCase().includes(q));
     }
     return list;
-  }, [allLeads, filter, searchQuery]);
+  }, [allLeads, filter, searchQuery, statusFilter]);
 
-  if (loading) return (
-    <div className="flex h-[60vh] items-center justify-center">
-      <Loader2 className="animate-spin text-primary" size={40} />
-    </div>
-  );
+  if (loading) return <div className="flex h-[60vh] items-center justify-center"><Loader2 className="animate-spin text-primary" size={40} /></div>;
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm gap-4">
-        <div>
-          <h2 className="text-2xl font-black text-slate-800 capitalize tracking-tight">
-            {filter.replace('all', 'Dashboard')} View
-          </h2>
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">
-            Total Records: {filteredLeads.length}
-          </p>
+      {/* Header & Main Filters Area */}
+      <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-3xl font-black text-slate-800 tracking-tight">Dashboard View</h2>
+            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Total Records: {filteredLeads.length}</p>
+          </div>
+          <button 
+            onClick={() => navigate('/create')} 
+            className="bg-[#00a389] hover:bg-[#008f78] text-white px-8 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95"
+          >
+            <Plus size={20} /> Add Lead
+          </button>
         </div>
-        
-        <div className="flex gap-3 w-full md:w-auto">
-          <div className="relative flex-1 md:w-80">
+
+        {/* Filters Row - Exact placement as per your requirement */}
+        <div className="flex flex-wrap gap-4 pt-2">
+          <div className="relative flex-1 min-w-[300px]">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
               placeholder="Search leads instantly..." 
@@ -73,67 +78,72 @@ export default function Dashboard({ filter = 'all' }: { filter?: string }) {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <button 
-            onClick={() => navigate('/create')} 
-            className="bg-primary hover:bg-primary/90 text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-lg shadow-primary/20 active:scale-95 transition-all"
+          
+          <select 
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-slate-50 border border-slate-100 rounded-2xl px-6 py-3 text-sm font-bold text-slate-600 outline-none cursor-pointer hover:bg-white transition-all"
           >
-            <Plus size={18} /> Add Lead
-          </button>
+            <option>All Statuses</option>
+            <option>New</option>
+            <option>Contacted</option>
+            <option>Interested</option>
+            <option>Follow-up</option>
+            <option>Closed</option>
+            <option>Dropped</option>
+          </select>
+
+          <select 
+            className="bg-slate-50 border border-slate-100 rounded-2xl px-6 py-3 text-sm font-bold text-slate-600 outline-none cursor-pointer hover:bg-white transition-all"
+          >
+            <option>All Priorities</option>
+            <option>High</option>
+            <option>Medium</option>
+            <option>Low</option>
+          </select>
         </div>
       </div>
 
-      {/* Table Section */}
-      <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50/50 border-b border-slate-100 text-slate-500 font-bold uppercase text-[10px] tracking-widest">
-              <tr>
-                <th className="px-8 py-5">Lead Information</th>
-                <th className="px-8 py-5">Current Status</th>
-                <th className="px-8 py-5">Source</th>
-                <th className="px-8 py-5">Next Follow-up</th>
-                <th className="px-8 py-5 text-right">Actions</th>
+      {/* Leads Table */}
+      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+        <table className="w-full text-left text-sm">
+          <thead className="bg-slate-50/50 border-b border-slate-100 text-slate-400 font-bold uppercase text-[10px] tracking-widest">
+            <tr>
+              <th className="px-10 py-6">Lead Information</th>
+              <th className="px-10 py-6">Status</th>
+              <th className="px-10 py-6">Source</th>
+              <th className="px-10 py-6">Next Follow-up</th>
+              <th className="px-10 py-6 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {filteredLeads.map((lead) => (
+              <tr key={lead.id} className="hover:bg-slate-50/50 cursor-pointer transition-all group" onClick={() => navigate(`/lead/${lead.id}`)}>
+                <td className="px-10 py-6">
+                  <div className="font-bold text-slate-900 group-hover:text-[#00a389] transition-colors text-base">{lead.name}</div>
+                  <div className="text-[11px] text-slate-400 font-black uppercase tracking-tighter">{lead.company || 'Direct Client'}</div>
+                </td>
+                <td className="px-10 py-6">
+                  <span className="px-4 py-1.5 bg-white border border-slate-100 text-slate-600 rounded-full text-[10px] font-black uppercase shadow-sm">
+                    {lead.status}
+                  </span>
+                </td>
+                <td className="px-10 py-6 text-slate-500 font-bold">{lead.source}</td>
+                <td className="px-10 py-6 text-slate-500 font-medium">
+                  <div className="flex items-center gap-2">
+                    <Calendar size={14} className="text-slate-300" />
+                    {lead.next_action_date || 'TBD'}
+                  </div>
+                </td>
+                <td className="px-10 py-6 text-right">
+                  <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-slate-50 text-slate-300 group-hover:bg-[#00a389] group-hover:text-white transition-all shadow-inner">
+                    →
+                  </div>
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {filteredLeads.map((lead) => (
-                <tr 
-                  key={lead.id} 
-                  className="hover:bg-blue-50/20 cursor-pointer transition-colors group"
-                  onClick={() => navigate(`/lead/${lead.id}`)}
-                >
-                  <td className="px-8 py-5">
-                    <div className="font-bold text-slate-900 group-hover:text-primary transition-colors text-base">{lead.name}</div>
-                    <div className="text-[11px] text-slate-400 font-black uppercase tracking-tighter">{lead.company || 'Direct Client'}</div>
-                  </td>
-                  <td className="px-8 py-5">
-                    <span className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-[10px] font-black uppercase shadow-sm">
-                      {lead.status}
-                    </span>
-                  </td>
-                  <td className="px-8 py-5 text-slate-500 font-semibold">{lead.source}</td>
-                  <td className="px-8 py-5">
-                    <div className="flex items-center gap-2 text-slate-500 font-medium">
-                      <Calendar size={14} className="text-slate-300" />
-                      {lead.next_action_date || 'No Date Set'}
-                    </div>
-                  </td>
-                  <td className="px-8 py-5 text-right">
-                    <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-slate-50 text-slate-300 group-hover:bg-primary group-hover:text-white transition-all shadow-inner">
-                      →
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {filteredLeads.length === 0 && (
-          <div className="py-32 text-center bg-white">
-            <Filter className="mx-auto text-slate-100 mb-4" size={48} />
-            <p className="text-slate-400 font-bold italic tracking-tight">No records matching your filters.</p>
-          </div>
-        )}
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
