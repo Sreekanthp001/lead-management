@@ -7,13 +7,11 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check current session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
@@ -21,17 +19,8 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     return () => subscription.unsubscribe();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="h-screen w-full flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div>
-      </div>
-    );
-  }
-
-  if (!session) {
-    return <Navigate to="/login" replace />;
-  }
+  if (loading) return null; 
+  if (!session) return <Navigate to="/login" replace />;
 
   return <>{children}</>;
 }
