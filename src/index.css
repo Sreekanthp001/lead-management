@@ -2,110 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Venturemond Lead Management System Design System
-   Primary accent: Teal/Cyan
-   All colors MUST be HSL.
-*/
-
 @layer base {
   :root {
     --background: 0 0% 100%;
     --foreground: 220 20% 10%;
-
     --card: 0 0% 100%;
     --card-foreground: 220 20% 10%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 220 20% 10%;
-
-    /* Teal/Cyan primary accent */
     --primary: 175 70% 40%;
     --primary-foreground: 0 0% 100%;
-
     --secondary: 210 20% 96%;
     --secondary-foreground: 220 20% 20%;
-
     --muted: 210 15% 96%;
     --muted-foreground: 220 10% 50%;
-
     --accent: 175 50% 95%;
     --accent-foreground: 175 70% 30%;
-
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
-
-    /* Status colors */
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-    
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 100%;
-
-    --overdue: 0 84% 60%;
-    --overdue-foreground: 0 0% 100%;
-
     --border: 220 13% 91%;
     --input: 220 13% 91%;
     --ring: 175 70% 40%;
-
-    --radius: 0.75rem;
-
-    --sidebar-background: 210 20% 98%;
-    --sidebar-foreground: 220 20% 30%;
-    --sidebar-primary: 175 70% 40%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 175 50% 95%;
-    --sidebar-accent-foreground: 175 70% 30%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 175 70% 40%;
+    --radius: 1rem;
   }
 
   .dark {
-    --background: 220 20% 8%;
-    --foreground: 210 20% 95%;
-
-    --card: 220 20% 10%;
-    --card-foreground: 210 20% 95%;
-
-    --popover: 220 20% 10%;
-    --popover-foreground: 210 20% 95%;
-
+    --background: 222 47% 4%;
+    --foreground: 210 20% 98%;
+    --card: 222 47% 7%;
+    --card-foreground: 210 20% 98%;
     --primary: 175 70% 45%;
-    --primary-foreground: 220 20% 8%;
-
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 210 20% 90%;
-
-    --muted: 220 15% 18%;
-    --muted-foreground: 220 10% 60%;
-
-    --accent: 175 40% 20%;
-    --accent-foreground: 175 70% 70%;
-
-    --destructive: 0 62% 40%;
-    --destructive-foreground: 0 0% 100%;
-
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-    
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 100%;
-
-    --overdue: 0 72% 50%;
-    --overdue-foreground: 0 0% 100%;
-
-    --border: 220 15% 20%;
-    --input: 220 15% 20%;
+    --primary-foreground: 222 47% 4%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
     --ring: 175 70% 45%;
-
-    --sidebar-background: 220 20% 10%;
-    --sidebar-foreground: 210 20% 85%;
-    --sidebar-primary: 175 70% 45%;
-    --sidebar-primary-foreground: 220 20% 8%;
-    --sidebar-accent: 175 40% 20%;
-    --sidebar-accent-foreground: 175 70% 70%;
-    --sidebar-border: 220 15% 20%;
-    --sidebar-ring: 175 70% 45%;
   }
 }
 
@@ -113,14 +43,17 @@
   * {
     @apply border-border;
   }
-
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground antialiased font-['Outfit'];
   }
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+/* Lovable Watermark & Badge Removal */
+.lovable-badge, 
+#lovable-watermark,
+[data-lovable-badge] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
