@@ -4,9 +4,8 @@ import { supabase } from '@/lib/supabase';
 import { 
   ArrowLeft, Calendar, Link2, FileText, Paperclip, 
   ExternalLink, Clock, User, Briefcase, ChevronRight,
-  Upload, Loader2, Send, MessageSquare
+  Upload, Loader2, Send, MessageSquare, CheckCircle2
 } from 'lucide-react';
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 export default function LeadDetails() {
@@ -15,10 +14,11 @@ export default function LeadDetails() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [lead, setLead] = useState<any>(null);
-  const [notes, setNotes] = useState<any[]>([]); // New state for multi-notes
-  const [newNote, setNewNote] = useState(''); // New state for input
+  const [notes, setNotes] = useState<any[]>([]);
+  const [newNote, setNewNote] = useState('');
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
   const [sendingNote, setSendingNote] = useState(false);
 
   useEffect(() => {
@@ -26,23 +26,54 @@ export default function LeadDetails() {
   }, [id]);
 
   const fetchLeadData = async () => {
-    setLoading(true);
-    // 1. Fetch Lead Details
-    const { data: leadData } = await supabase.from('leads').select('*').eq('id', id).single();
-    
-    // 2. Fetch Related Notes from lead_notes table
-    const { data: notesData } = await supabase
-      .from('lead_notes')
-      .select('*')
-      .eq('lead_id', id)
-      .order('created_at', { ascending: false });
+    try {
+      setLoading(true);
+      const { data: leadData } = await supabase.from('leads').select('*').eq('id', id).single();
+      const { data: notesData } = await supabase
+        .from('lead_notes')
+        .select('*')
+        .eq('lead_id', id)
+        .order('created_at', { ascending: false });
 
-    setLead(leadData);
-    setNotes(notesData || []);
-    setLoading(false);
+      setLead(leadData);
+      setNotes(notesData || []);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Note saving function
+  // Status Update & Auto-Note Function
+  const handleStatusUpdate = async (newStatus: string) => {
+    try {
+      setUpdatingStatus(true);
+      
+      // 1. Update Lead Status
+      const { error: updateError } = await supabase
+        .from('leads')
+        .update({ status: newStatus })
+        .eq('id', id);
+
+      if (updateError) throw updateError;
+
+      // 2. Add Auto-generated System Note
+      await supabase
+        .from('lead_notes')
+        .insert([{ 
+          lead_id: id, 
+          content: `⚡ Status changed to: ${newStatus.toUpperCase()}` 
+        }]);
+
+      fetchLeadData(); // Refresh UI
+      alert(`Lead status updated to ${newStatus}!`);
+    } catch (error: any) {
+      alert(error.message);
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNote.trim()) return;
@@ -89,7 +120,6 @@ export default function LeadDetails() {
 
       fetchLeadData();
       alert("File uploaded successfully!");
-
     } catch (error: any) {
       alert(error.message);
     } finally {
@@ -114,8 +144,19 @@ export default function LeadDetails() {
           </button>
           
           <div className="flex gap-3">
-            <Button variant="outline" className="bg-white text-slate-900 border-none shadow-sm font-black rounded-2xl px-6 hover:bg-slate-100">Edit Lead</Button>
-            <Button className="bg-[#00a389] text-white font-black rounded-2xl px-6 shadow-lg shadow-[#00a389]/20">Update Status</Button>
+            {/* Simple Status Toggle for now */}
+            <select 
+              disabled={updatingStatus}
+              onChange={(e) => handleStatusUpdate(e.target.value)}
+              value={lead.status}
+              className="bg-white text-slate-900 border-none shadow-sm font-black rounded-2xl px-6 focus:ring-2 focus:ring-[#00a389] outline-none cursor-pointer"
+            >
+              <option value="New">New</option>
+              <option value="Contacted">Contacted</option>
+              <option value="Interested">Interested</option>
+              <option value="Proposal Sent">Proposal Sent</option>
+              <option value="Closed">Closed</option>
+            </select>
           </div>
         </div>
 
@@ -164,13 +205,12 @@ export default function LeadDetails() {
                 </div>
             </div>
 
-            {/* Step 1: Interaction Timeline (Activity Notes) */}
+            {/* Interaction Timeline */}
             <div className="space-y-6">
                 <h2 className="text-xl font-black text-slate-800 flex items-center gap-2 px-4">
                     <MessageSquare className="text-[#00a389]" /> Activity Notes
                 </h2>
                 
-                {/* Note Input Box */}
                 <form onSubmit={handleAddNote} className="relative group">
                   <textarea 
                     value={newNote}
@@ -180,19 +220,24 @@ export default function LeadDetails() {
                   />
                   <button 
                     disabled={sendingNote || !newNote.trim()}
-                    className="absolute bottom-6 right-6 bg-[#00a389] text-white p-4 rounded-2xl shadow-lg shadow-[#00a389]/20 hover:scale-110 active:scale-95 transition-all disabled:opacity-30 disabled:hover:scale-100"
+                    className="absolute bottom-6 right-6 bg-[#00a389] text-white p-4 rounded-2xl shadow-lg shadow-[#00a389]/20 hover:scale-110 active:scale-95 transition-all disabled:opacity-30"
                   >
                     {sendingNote ? <Loader2 className="animate-spin" size={20} /> : <Send size={20} />}
                   </button>
                 </form>
 
-                {/* Dynamic Notes List */}
                 <div className="space-y-4">
                     {notes.map((note) => (
                       <div key={note.id} className="relative pl-8 before:absolute before:left-[11px] before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-200">
                           <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 relative">
-                              <div className="absolute -left-[27px] top-6 w-4 h-4 rounded-full bg-[#00a389] border-4 border-[#f8fafc]" />
-                              <p className="text-slate-600 font-bold whitespace-pre-wrap leading-relaxed">
+                              <div className={cn(
+                                "absolute -left-[27px] top-6 w-4 h-4 rounded-full border-4 border-[#f8fafc]",
+                                note.content.startsWith('⚡') ? "bg-amber-500" : "bg-[#00a389]"
+                              )} />
+                              <p className={cn(
+                                "font-bold whitespace-pre-wrap leading-relaxed",
+                                note.content.startsWith('⚡') ? "text-slate-400 italic text-sm" : "text-slate-600"
+                              )}>
                                   {note.content}
                               </p>
                               <div className="mt-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
@@ -201,12 +246,6 @@ export default function LeadDetails() {
                           </div>
                       </div>
                     ))}
-
-                    {notes.length === 0 && (
-                        <div className="text-center p-10 bg-slate-100 rounded-[2rem] border-2 border-dashed border-slate-200 text-slate-400 font-bold">
-                            No activity notes yet. Start by adding one above!
-                        </div>
-                    )}
                 </div>
             </div>
           </div>
@@ -229,37 +268,20 @@ export default function LeadDetails() {
                         <Paperclip className="text-[#00a389]" />
                         <span className="font-black uppercase tracking-widest text-xs text-slate-400">Documents</span>
                     </div>
-                    <input 
-                      type="file" 
-                      hidden 
-                      ref={fileInputRef} 
-                      onChange={handleFileUpload}
-                      accept=".pdf,.doc,.docx,.png,.jpg"
-                    />
-                    <button 
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={uploading}
-                      className="p-2 rounded-xl bg-slate-50 hover:bg-[#00a389] hover:text-white transition-all text-slate-400"
-                    >
+                    <input type="file" hidden ref={fileInputRef} onChange={handleFileUpload} accept=".pdf,.doc,.docx,.png,.jpg"/>
+                    <button onClick={() => fileInputRef.current?.click()} disabled={uploading} className="p-2 rounded-xl bg-slate-50 hover:bg-[#00a389] hover:text-white transition-all text-slate-400">
                         {uploading ? <Loader2 className="animate-spin" size={18} /> : <Upload size={18} />}
                     </button>
                 </div>
 
                 {lead.document_url ? (
-                    <div className="space-y-3">
-                        <a 
-                          href={lead.document_url} 
-                          target="_blank" 
-                          rel="noreferrer"
-                          className="w-full flex items-center justify-between p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-[#00a389] transition-all group"
-                        >
-                            <div className="flex items-center gap-3 overflow-hidden">
-                                <FileText className="text-[#00a389] shrink-0" size={18} />
-                                <span className="font-black text-sm text-slate-700 truncate">View Proposal / Doc</span>
-                            </div>
-                            <ChevronRight size={18} className="text-slate-300 group-hover:text-[#00a389]" />
-                        </a>
-                    </div>
+                    <a href={lead.document_url} target="_blank" rel="noreferrer" className="w-full flex items-center justify-between p-5 rounded-2xl bg-slate-50 border border-slate-100 hover:border-[#00a389] transition-all group">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                            <FileText className="text-[#00a389] shrink-0" size={18} />
+                            <span className="font-black text-sm text-slate-700 truncate">View Proposal / Doc</span>
+                        </div>
+                        <ChevronRight size={18} className="text-slate-300 group-hover:text-[#00a389]" />
+                    </a>
                 ) : (
                     <div className="text-center py-6 border-2 border-dashed border-slate-100 rounded-3xl">
                         <p className="text-slate-400 text-xs font-bold italic">No documents uploaded</p>
@@ -267,7 +289,6 @@ export default function LeadDetails() {
                 )}
             </div>
           </div>
-
         </div>
       </div>
     </div>
