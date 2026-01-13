@@ -1,6 +1,10 @@
 import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Loader2, Search, Plus, Calendar, Moon, Sun, ArrowRight, Link2, FileText, Paperclip } from 'lucide-react';
+import { 
+  Loader2, Search, Plus, Calendar, Moon, Sun, 
+  ArrowRight, Link2, FileText, Paperclip, Building2,
+  TrendingUp, CheckCircle2
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from "@/lib/utils";
 
@@ -29,7 +33,6 @@ export default function Dashboard({ filter = 'all' }: { filter?: string }) {
   useEffect(() => {
     const fetchLeads = async () => {
       setLoading(true);
-      // Fetches all fields including the new ones you requested
       const { data } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
       setAllLeads(data || []);
       setLoading(false);
@@ -55,49 +58,61 @@ export default function Dashboard({ filter = 'all' }: { filter?: string }) {
     return list;
   }, [allLeads, filter, searchQuery, statusFilter, priorityFilter]);
 
-  if (loading) return <div className="flex h-[60vh] items-center justify-center"><Loader2 className="animate-spin text-[#00a389]" size={40} /></div>;
+  if (loading) return (
+    <div className="flex h-screen items-center justify-center bg-[#f8fafc]">
+      <div className="flex flex-col items-center gap-4">
+        <Loader2 className="animate-spin text-[#00a389]" size={48} />
+        <p className="font-black text-slate-400 tracking-widest uppercase text-xs">Venturemond CRM</p>
+      </div>
+    </div>
+  );
 
   return (
     <div className={cn(
-      "min-h-screen transition-all duration-700 p-6 lg:p-10 font-['Outfit']",
+      "min-h-screen transition-all duration-500 p-6 lg:p-10 font-['Outfit']",
       isDarkMode ? "bg-[#0b0f1a] text-slate-100" : "bg-[#f8fafc] text-slate-900"
     )}>
       <div className="max-w-7xl mx-auto space-y-10">
         
-        {/* Header Section - Cleaned Title */}
+        {/* Header Section */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
           <div>
-            <h1 className="text-5xl font-black tracking-tight mb-2">Dashboard</h1>
+            <div className="flex items-center gap-3 mb-2">
+               <span className="bg-[#00a389] text-white p-2 rounded-xl shadow-lg shadow-[#00a389]/40">
+                  <TrendingUp size={24} />
+               </span>
+               <h1 className="text-5xl font-black tracking-tight">Venturemond</h1>
+            </div>
             <p className={cn("text-sm font-bold tracking-wide", isDarkMode ? "text-slate-500" : "text-slate-400")}>
-              Venturemond Lead Intel — <span className="text-[#00a389]">{filteredLeads.length} active leads</span>
+              Lead Intel Central — <span className="text-[#00a389] underline decoration-wavy decoration-2 underline-offset-4">{filteredLeads.length} total leads</span>
             </p>
           </div>
           
           <div className="flex items-center gap-3">
             <button onClick={toggleTheme} className={cn(
-              "p-4 rounded-2xl border transition-all hover:scale-105 active:scale-95 shadow-sm",
+              "p-4 rounded-[1.5rem] border transition-all hover:scale-105 active:scale-95 shadow-sm",
               isDarkMode ? "bg-slate-800 border-slate-700 text-yellow-400" : "bg-white border-slate-200 text-slate-600"
             )}>
               {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
-            <button onClick={() => navigate('/create')} className="bg-[#00a389] hover:bg-[#008f78] text-white px-8 py-4 rounded-2xl font-black flex items-center gap-2 shadow-lg shadow-[#00a389]/20 transition-all hover:-translate-y-1 uppercase text-xs tracking-widest">
-              <Plus size={18} strokeWidth={3} /> Add Lead
+            <button onClick={() => navigate('/create')} className="bg-[#00a389] hover:bg-[#008f78] text-white px-8 py-5 rounded-[1.5rem] font-black flex items-center gap-3 shadow-xl shadow-[#00a389]/20 transition-all hover:-translate-y-1 uppercase text-xs tracking-widest">
+              <Plus size={20} strokeWidth={3} /> Add Lead
             </button>
           </div>
         </div>
 
         {/* Filters Section */}
         <div className={cn(
-          "p-2 rounded-[2.5rem] flex flex-wrap gap-2 transition-all shadow-inner",
-          isDarkMode ? "bg-slate-900/40" : "bg-slate-200/40"
+          "p-3 rounded-[2.5rem] flex flex-wrap gap-3 transition-all",
+          isDarkMode ? "bg-slate-900/60 border border-slate-800" : "bg-white shadow-xl shadow-slate-200/50 border border-slate-100"
         )}>
-          <div className="relative flex-1 min-w-[280px]">
+          <div className="relative flex-[2] min-w-[300px]">
             <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
-              placeholder="Search by lead name or company..." 
+              placeholder="Search leads, companies or tags..." 
               className={cn(
-                "w-full pl-16 pr-6 py-5 rounded-[1.8rem] text-sm font-bold outline-none transition-all border-none focus:ring-2 focus:ring-[#00a389]/20",
-                isDarkMode ? "bg-slate-800 text-white placeholder:text-slate-600" : "bg-white text-slate-900 placeholder:text-slate-400"
+                "w-full pl-16 pr-6 py-5 rounded-[1.8rem] text-sm font-bold outline-none transition-all",
+                isDarkMode ? "bg-slate-800 text-white placeholder:text-slate-600" : "bg-slate-50 text-slate-900 placeholder:text-slate-400"
               )}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -105,78 +120,95 @@ export default function Dashboard({ filter = 'all' }: { filter?: string }) {
           </div>
           
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}
-            className={cn("px-8 py-5 rounded-[1.8rem] text-sm font-black outline-none cursor-pointer border-none", isDarkMode ? "bg-slate-800" : "bg-white")}>
+            className={cn("px-8 py-5 rounded-[1.8rem] text-sm font-black outline-none cursor-pointer appearance-none", isDarkMode ? "bg-slate-800" : "bg-slate-50")}>
             <option>All Statuses</option>
             {['New', 'Contacted', 'Interested', 'Follow-up', 'Closed', 'Dropped'].map(s => <option key={s}>{s}</option>)}
           </select>
 
           <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}
-            className={cn("px-8 py-5 rounded-[1.8rem] text-sm font-black outline-none cursor-pointer border-none", isDarkMode ? "bg-slate-800" : "bg-white")}>
+            className={cn("px-8 py-5 rounded-[1.8rem] text-sm font-black outline-none cursor-pointer appearance-none", isDarkMode ? "bg-slate-800" : "bg-slate-50")}>
             <option>All Priorities</option>
             {['High', 'Medium', 'Low'].map(p => <option key={p}>{p}</option>)}
           </select>
         </div>
 
-        {/* Leads Grid - Updated with Info Icons from your notes */}
-        <div className="grid gap-5">
+        {/* Leads Grid */}
+        <div className="grid gap-6">
           {filteredLeads.map((lead) => (
             <div 
               key={lead.id} 
               onClick={() => navigate(`/lead/${lead.id}`)}
               className={cn(
-                "group p-8 rounded-[2.5rem] border transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-6 hover:shadow-2xl hover:border-[#00a389]/40",
-                isDarkMode ? "bg-slate-900 border-slate-800 hover:bg-slate-800/50" : "bg-white border-slate-100 hover:bg-slate-50"
+                "group p-8 rounded-[3rem] border transition-all cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-6 relative overflow-hidden",
+                isDarkMode ? "bg-slate-900 border-slate-800 hover:border-[#00a389]/50" : "bg-white border-slate-100 hover:border-[#00a389]/30 hover:shadow-2xl hover:shadow-[#00a389]/5"
               )}
             >
+              {/* Card Decoration */}
+              <div className="absolute top-0 left-0 w-2 h-full bg-[#00a389] opacity-0 group-hover:opacity-100 transition-all" />
+
               <div className="flex items-center gap-6">
-                <div className="w-16 h-16 rounded-[1.5rem] bg-[#00a389]/10 flex items-center justify-center text-[#00a389] font-black text-2xl shadow-inner">
+                <div className="w-16 h-16 rounded-[2rem] bg-gradient-to-br from-[#00a389] to-[#00816d] flex items-center justify-center text-white font-black text-2xl shadow-lg shadow-[#00a389]/20 transition-transform group-hover:scale-110">
                   {lead.name.charAt(0)}
                 </div>
                 <div>
-                  <h3 className="text-2xl font-black tracking-tighter group-hover:text-[#00a389] transition-colors">{lead.name}</h3>
+                  <h3 className="text-2xl font-black tracking-tight group-hover:text-[#00a389] transition-colors">{lead.name}</h3>
                   <div className="flex flex-wrap items-center gap-3 mt-2">
-                    <span className={cn("text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg", isDarkMode ? "bg-slate-800 text-slate-500" : "bg-slate-100 text-slate-400")}>
-                      {lead.company || 'Direct Client'}
+                    <span className={cn("flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg", isDarkMode ? "bg-slate-800 text-slate-500" : "bg-slate-100 text-slate-400")}>
+                      <Building2 size={12} /> {lead.company || 'Direct Client'}
                     </span>
                     
-                    {/* Visual Indicators for your new fields */}
+                    {/* Activity Badges */}
                     <div className="flex items-center gap-2">
-                        {lead.portfolio_url && <Link2 size={14} className="text-[#00a389]" title="Links attached" />}
-                        {lead.meeting_notes && <FileText size={14} className="text-blue-500" title="Meeting notes available" />}
-                        {lead.document_url && <Paperclip size={14} className="text-orange-500" title="Document uploaded" />}
+                        {lead.portfolio_url && <Link2 size={14} className="text-[#00a389]" />}
+                        {lead.meeting_notes && <FileText size={14} className="text-blue-500" />}
+                        {lead.document_url && <Paperclip size={14} className="text-orange-500" />}
                     </div>
                   </div>
                 </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-8 md:gap-14">
-                <div className="hidden sm:block">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">Status</p>
+                <div className="hidden sm:block text-center">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Lead Status</p>
                   <span className={cn(
-                    "px-6 py-2 rounded-2xl text-[10px] font-black uppercase border tracking-widest block",
-                    isDarkMode ? "bg-slate-950 border-slate-700 text-slate-300" : "bg-white border-slate-200 text-slate-600 shadow-sm"
+                    "px-6 py-2 rounded-2xl text-[10px] font-black uppercase border tracking-widest block transition-all",
+                    lead.status === 'Interested' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                    lead.status === 'Closed' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                    isDarkMode ? "bg-slate-950 border-slate-700 text-slate-300" : "bg-white border-slate-200 text-slate-600"
                   )}>
                     {lead.status}
                   </span>
                 </div>
 
-                <div className="hidden sm:block">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 text-center">Follow-up</p>
-                  <div className="flex items-center justify-center gap-2 text-sm font-black italic">
+                <div className="hidden sm:block text-center">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Next Step</p>
+                  <div className="flex items-center justify-center gap-2 text-sm font-black text-slate-700">
                     <Calendar size={16} className="text-[#00a389]" />
-                    {lead.next_action_date || 'TBD'}
+                    <span className={isDarkMode ? "text-slate-300" : "text-slate-700"}>
+                        {lead.next_action_date || 'No Date Set'}
+                    </span>
                   </div>
                 </div>
 
                 <div className={cn(
-                  "w-12 h-12 rounded-full flex items-center justify-center transition-all group-hover:bg-[#00a389] group-hover:text-white group-hover:scale-110",
-                  isDarkMode ? "bg-slate-800 text-slate-500" : "bg-slate-100 text-slate-300"
+                  "w-12 h-12 rounded-2xl flex items-center justify-center transition-all group-hover:bg-[#00a389] group-hover:text-white group-hover:rotate-[-45deg] shadow-sm",
+                  isDarkMode ? "bg-slate-800 text-slate-500" : "bg-slate-50 text-slate-300"
                 )}>
                   <ArrowRight size={24} strokeWidth={3} />
                 </div>
               </div>
             </div>
           ))}
+
+          {filteredLeads.length === 0 && !loading && (
+            <div className="text-center py-24 bg-white rounded-[4rem] border-2 border-dashed border-slate-100">
+                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-200">
+                    <Search size={40} />
+                </div>
+                <h3 className="text-xl font-black text-slate-800">No leads found</h3>
+                <p className="text-slate-400 font-bold">Try adjusting your filters or add a new lead.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
