@@ -9,10 +9,11 @@ import { supabase } from "@/lib/supabase";
 import Dashboard from "./pages/Dashboard";
 import CreateLead from "./pages/CreateLead";
 import LeadDetail from "./pages/LeadDetail";
+import TableViewPage from "./pages/TableViewPage";
 import NotFound from "./pages/NotFound";
 import Sidebar from "./components/Sidebar";
-import Auth from "./pages/Auth"; // Login page kotha file
-import ProtectedRoute from "./components/ProtectedRoute"; // Session check chese file
+import Auth from "./pages/Auth";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -21,19 +22,36 @@ const App = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // --- Auto Theme Logic ---
   useEffect(() => {
-    // 1. Initial Session Check
+    const handleTheme = () => {
+      const savedTheme = localStorage.getItem('vm-theme');
+      const hour = new Date().getHours();
+      const isNightTime = hour >= 18 || hour < 6;
+
+      if (savedTheme) {
+        document.documentElement.classList.toggle('dark', savedTheme === 'dark');
+      } else {
+        document.documentElement.classList.toggle('dark', isNightTime);
+      }
+    };
+
+    handleTheme();
+    const interval = setInterval(handleTheme, 600000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
     });
 
-    // 2. Auth State Change Listener (Login/Logout detect chestundi)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
 
-    // 3. Stats Update Function
+    // DYNAMIC STATS UPDATE LOGIC
     async function updateStats() {
       const { data: leads } = await supabase.from('leads').select('*');
       if (leads) {
@@ -60,7 +78,7 @@ const App = () => {
     };
   }, [session]);
 
-  if (loading) return null; // Initial loading appudu empty screen or spinner
+  if (loading) return null;
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -69,24 +87,22 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
-            {/* Login Route: Session unte home ki pampisthundi */}
             <Route path="/login" element={!session ? <Auth /> : <Navigate to="/" replace />} />
-
-            {/* Private Routes: Session unteనే side-bar mariyu content kanipisthundi */}
             <Route
               path="/*"
               element={
                 <ProtectedRoute>
-                  <div className="flex h-screen bg-gray-50 overflow-hidden font-['Inter',sans-serif]">
+                  <div className="flex h-screen bg-[#f8fafc] dark:bg-slate-950 overflow-hidden font-['Outfit',sans-serif] lg:pl-64 transition-colors duration-500">
                     <Sidebar counts={counts} />
-                    <main className="flex-1 overflow-y-auto p-8">
+                    <main className="flex-1 overflow-y-auto pt-16 lg:pt-0">
                       <Routes>
                         <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                        {/* ROUTES WITH FILTERS PASSED TO DASHBOARD */}
                         <Route path="/dashboard" element={<Dashboard filter="all" />} />
+                        <Route path="/table" element={<TableViewPage />} />
                         <Route path="/overdue" element={<Dashboard filter="overdue" />} />
                         <Route path="/today" element={<Dashboard filter="today" />} />
                         <Route path="/active" element={<Dashboard filter="active" />} />
-                        <Route path="/followups" element={<Dashboard filter="today" />} />
                         <Route path="/closed" element={<Dashboard filter="closed" />} />
                         <Route path="/create" element={<CreateLead />} />
                         <Route path="/lead/:id" element={<LeadDetail />} />
