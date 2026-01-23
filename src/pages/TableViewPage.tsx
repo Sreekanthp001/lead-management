@@ -2,19 +2,20 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import TableView from '@/components/TableView';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useLeads } from '@/contexts/LeadsContext';
 
 export default function TableViewPage() {
-  const [leads, setLeads] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { leads, loading, fetchLeads } = useLeads();
+  const { role, session } = useAuth();
+  const userId = session?.user?.id;
+  const isAdmin = role === 'admin' || role === 'super_admin';
 
   useEffect(() => {
-    const fetchLeads = async () => {
-      const { data } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
-      setLeads(data || []);
-      setLoading(false);
-    };
-    fetchLeads();
-  }, []);
+    if (userId) {
+      fetchLeads(userId);
+    }
+  }, [userId, fetchLeads]);
 
   if (loading) return (
     <div className="flex h-screen items-center justify-center bg-[#f1f5f9] dark:bg-[#0b0f1a]">
@@ -34,10 +35,10 @@ export default function TableViewPage() {
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em] mt-1">Master View of All Leads</p>
         </div>
       </div>
-      
+
       {/* Table Section */}
       <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <TableView leads={leads} />
+        <TableView leads={leads} isAdmin={isAdmin} userId={userId} />
       </div>
     </div>
   );

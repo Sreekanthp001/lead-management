@@ -3,26 +3,29 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { 
-  Plus, X, Upload, Save, ChevronLeft, Loader2, Trash2, Calendar, Link2, FileText
+import {
+  Plus, X, Save, ChevronLeft, Loader2, Trash2
 } from 'lucide-react';
 import { toast } from "sonner";
-
-// STEP 1: Supabase client path ni fix chesa (Nee folder structure prakaram)
-import { supabase } from "@/lib/supabase"; 
+import { supabase } from "@/lib/supabase";
+import { useAuth } from '@/contexts/AuthContext';
+import { useLeads } from '@/contexts/LeadsContext';
+import { cn } from "@/lib/utils";
 
 export default function CreateLead() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const { session, profile, role } = useAuth();
+  const { addOptimisticLead, fetchLeads } = useLeads();
+  const userId = session?.user?.id || null;
 
-  // Dynamic Lists States
+  // States
   const [links, setLinks] = useState([{ id: Date.now(), url: '' }]);
-  const [followups, setFollowups] = useState([{ id: Date.now(), action: '', date: '' }]);
-  const [meetings, setMeetings] = useState([{ id: Date.now(), notes: '', date: '', title: 'Meeting 1' }]);
+  const [followups, setFollowups] = useState([{ id: Date.now(), action: '', date: '2026-01-22' }]);
+  const [meetings, setMeetings] = useState([{ id: Date.now(), notes: '', date: '2026-01-22', title: 'Meeting 1' }]);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
 
-  // Form Fields
   const [formData, setFormData] = useState({
     name: '',
     source: 'LinkedIn',
@@ -30,13 +33,15 @@ export default function CreateLead() {
     profileUrl: '',
     status: 'New',
     nextAction: 'Contact lead',
-    nextActionDate: '2026-01-14',
+    nextActionDate: '2026-01-22',
     priority: 'Medium',
     estimate: '',
     context: ''
   });
 
-  // --- Handlers ---
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+
   const addTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
       setTags([...tags, tagInput.trim()]);
@@ -44,263 +49,269 @@ export default function CreateLead() {
     }
   };
 
-  const updateLink = (id: number, url: string) => {
-    setLinks(links.map(l => l.id === id ? { ...l, url } : l));
-  };
-
-  const updateFollowup = (id: number, field: string, value: string) => {
-    setFollowups(followups.map(f => f.id === id ? { ...f, [field]: value } : f));
-  };
-
-  const updateMeeting = (id: number, field: string, value: string) => {
-    setMeetings(meetings.map(m => m.id === id ? { ...m, [field]: value } : m));
-  };
+  const updateLink = (id: number, url: string) => setLinks(links.map(l => l.id === id ? { ...l, url } : l));
+  const updateFollowup = (id: number, field: string, value: string) => setFollowups(followups.map(f => f.id === id ? { ...f, [field]: value } : f));
+  const updateMeeting = (id: number, field: string, value: string) => setMeetings(meetings.map(m => m.id === id ? { ...m, [field]: value } : m));
 
   const removeLink = (id: number) => setLinks(links.filter(l => l.id !== id));
   const removeFollowup = (id: number) => setFollowups(followups.filter(f => f.id !== id));
   const removeMeeting = (id: number) => setMeetings(meetings.filter(m => m.id !== id));
+  const addMeeting = () => setMeetings([...meetings, { id: Date.now(), notes: '', date: '2026-01-22', title: `Meeting ${meetings.length + 1}` }]);
 
-  const addMeeting = () => {
-    setMeetings([...meetings, { id: Date.now(), notes: '', date: '', title: `Meeting ${meetings.length + 1}` }]);
-  };
+  // LinkedIn Duplicate Check
+  const checkDuplicate = async (url: string) => {
+    if (!url || !url.includes('linkedin.com')) {
+      setDuplicateError(null);
+      return;
+    }
 
-  // STEP 2: Database Submission (Updated with your NEW SQL columns)
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
+    setCheckingDuplicate(true);
     try {
-      // Validation to avoid empty entries
-      const filteredLinks = links.filter(l => l.url.trim() !== "");
-      const filteredFollowups = followups.filter(f => f.action.trim() !== "");
-      const filteredMeetings = meetings.filter(m => m.notes.trim() !== "");
+      const { data, error } = await supabase
+        .from('leads')
+        .select('created_by_name')
+        .eq('linkedin_url', url.trim())
+        .maybeSingle();
 
-      const { error } = await supabase
-        .from('leads') 
-        .insert([
-          {
-            name: formData.name,
-            source: formData.source,
-            contact: formData.primaryContact, 
-            linkedin_url: formData.profileUrl, 
-            status: formData.status,
-            next_action: formData.nextAction,
-            next_action_date: formData.nextActionDate,
-            priority: formData.priority,
-            value_estimate: formData.estimate ? parseFloat(formData.estimate) : null,
-            context: formData.context,
-            
-            // --- DYNAMIC DATA MAPPING ---
-            // Nuvvu okka link echina, ledha multiple links echina ee array loki velthayi
-            links: filteredLinks, 
-            
-            // Follow-up dates and actions
-            followup_schedule: filteredFollowups,
-            
-            // Tags array
-            tags: tags,
-            
-            // Meeting notes logic
-            meeting_notes: filteredMeetings,
-
-            // Compatibility for old column (Single link string storage)
-            portfolio_url: filteredLinks.length > 0 ? filteredLinks[0].url : null
-          }
-        ]);
-
-      if (error) throw error;
-
-      toast.success("Lead created successfully!");
-      navigate('/dashboard');
-    } catch (error: any) {
-      console.error("Supabase Error:", error);
-      toast.error("Error: " + error.message);
+      if (data) {
+        setDuplicateError(`This Lead is already added by ${data.created_by_name || 'another user'}`);
+      } else {
+        setDuplicateError(null);
+      }
+    } catch (err) {
+      console.error("Duplicate check error:", err);
     } finally {
-      setLoading(false);
+      setCheckingDuplicate(false);
     }
   };
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Safety check: Use userId immediately from context
+    const currentUserId = session?.user?.id;
+    if (!currentUserId || duplicateError) {
+      if (duplicateError) toast.error(duplicateError);
+      return;
+    }
+
+    const authUser = session.user;
+    const finalStatus = formData.status || 'New';
+    const currentTime = new Date().toISOString();
+
+    const leadData = {
+      name: formData.name,
+      source: formData.source,
+      contact: formData.primaryContact,
+      linkedin_url: formData.profileUrl,
+      status: finalStatus,
+      next_action: formData.nextAction,
+      next_action_date: formData.nextActionDate,
+      priority: formData.priority,
+      value_estimate: formData.estimate ? parseFloat(formData.estimate) : undefined,
+      context: formData.context,
+      links: links.filter(l => l.url),
+      tags: tags,
+      user_id: currentUserId,
+      assigned_to: currentUserId,
+      created_by_name: authUser.user_metadata?.full_name || authUser.email,
+      created_by_email: authUser.email,
+      created_by_role: role || 'user'
+    };
+
+    // OPTIMISTIC UI: Add to local state instantly
+    addOptimisticLead({
+      id: 'temp-' + Date.now(),
+      created_at: currentTime,
+      ...leadData
+    } as any);
+
+    // INSTANT REDIRECT: Do not wait for DB response
+    toast.success("Lead Added (Syncing...)");
+    navigate('/dashboard');
+
+    // Background Insert (Fire & Forget)
+    supabase.from('leads').insert([leadData]).then(({ error }) => {
+      if (error) {
+        console.error("Background Create Error:", error);
+        toast.error("Background save failed.");
+      } else {
+        fetchLeads(currentUserId, true);
+      }
+    });
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 lg:p-8 font-['Outfit']">
-      <div className="max-w-4xl mx-auto">
-        
-        <div className="flex items-center justify-between mb-8">
-          <button type="button" onClick={() => navigate(-1)} className="flex items-center gap-2 text-slate-500 font-bold hover:text-[#00a389] transition-all">
-            <ChevronLeft size={20} /> Back to Intel
+    /* Alignment fixed: items-start and remove unnecessary centering */
+    <div className="min-h-screen bg-background text-foreground p-4 lg:p-8 font-['Outfit'] flex flex-col items-start overflow-x-hidden">
+
+      {/* Container: Changed max-w-6xl to max-w-full to sit next to sidebar */}
+      <div className="w-full max-w-full space-y-6">
+
+        {/* Header Section */}
+        <div className="flex items-center justify-between mb-2 h-10">
+          <button
+            type="button"
+            onClick={() => navigate('/dashboard')}
+            className="flex items-center gap-2 text-slate-500 font-bold hover:text-[#00a389] transition-all group"
+          >
+            <ChevronLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
+            <span>Back to Intel</span>
           </button>
-          <div className="text-right">
-            <h1 className="text-3xl font-[1000] italic uppercase text-slate-900 dark:text-white tracking-tighter">
-              CREATE <span className="text-[#00a389]">NEW LEAD</span>
-            </h1>
-          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 pb-20">
-          
-          <div className="bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-sm border border-slate-100 dark:border-slate-800 space-y-6">
-            <div className="grid md:grid-cols-2 gap-6">
+        <form onSubmit={handleSubmit} className="space-y-6 pb-20 w-full">
+          {/* Section 1: Basic Info */}
+          <div className="bg-card rounded-[32px] p-8 shadow-sm border border-border space-y-6">
+            <h3 className="text-[12px] font-black text-[#00a389] uppercase tracking-widest border-b border-border pb-4">General Information</h3>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
               <div className="space-y-2">
-                <Label className="text-[11px] font-black uppercase text-slate-400">Name *</Label>
-                <Input required placeholder="Person or Company name" className="h-12 rounded-xl bg-slate-50 border-none font-bold" 
-                  value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                <Label className="text-[11px] font-black uppercase text-slate-900 dark:text-slate-400">Name *</Label>
+                <Input required placeholder="Name" className="h-12 rounded-xl bg-white border border-slate-300 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label className="text-[11px] font-black uppercase text-slate-400">Source *</Label>
-                <select className="w-full h-12 rounded-xl bg-slate-50 border-none px-4 font-bold outline-none"
-                  value={formData.source} onChange={e => setFormData({...formData, source: e.target.value})}>
-                  <option>LinkedIn</option>
-                  <option>Upwork</option>
-                  <option>Referral</option>
+                <Label className="text-[11px] font-black uppercase text-slate-900 dark:text-slate-400">Source *</Label>
+                <select className="w-full h-12 rounded-xl bg-white border border-slate-300 dark:border-slate-800 px-4 font-bold outline-none text-slate-900 dark:text-slate-100" value={formData.source} onChange={e => setFormData({ ...formData, source: e.target.value })}>
+                  <option>LinkedIn</option><option>Upwork</option><option>Referral</option>
                 </select>
               </div>
-              
               <div className="space-y-2">
-                <Label className="text-[11px] font-black uppercase text-slate-400">Primary Contact</Label>
-                <Input placeholder="Email or Phone" className="h-12 rounded-xl bg-slate-50 border-none font-bold" 
-                  value={formData.primaryContact} onChange={e => setFormData({...formData, primaryContact: e.target.value})} />
+                <Label className="text-[11px] font-black uppercase text-slate-900 dark:text-slate-400">Primary Contact</Label>
+                <Input placeholder="Email/Phone" className="h-12 rounded-xl bg-white border border-slate-300 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100" value={formData.primaryContact} onChange={e => setFormData({ ...formData, primaryContact: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label className="text-[11px] font-black uppercase text-slate-400">LinkedIn Profile URL</Label>
-                <Input placeholder="linkedin.com/in/username" className="h-12 rounded-xl bg-slate-50 border-none font-bold" 
-                  value={formData.profileUrl} onChange={e => setFormData({...formData, profileUrl: e.target.value})} />
+                <Label className="text-[11px] font-black uppercase text-slate-900 dark:text-slate-400">LinkedIn Profile URL</Label>
+                <div className="space-y-1">
+                  <Input
+                    placeholder="URL"
+                    className={cn(
+                      "h-12 rounded-xl bg-white border font-bold text-slate-900 dark:text-slate-100",
+                      duplicateError ? "border-red-500 ring-1 ring-red-500" : "border-slate-300 dark:border-slate-800"
+                    )}
+                    value={formData.profileUrl}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setFormData({ ...formData, profileUrl: val });
+                      checkDuplicate(val);
+                    }}
+                  />
+                  {duplicateError && <p className="text-[10px] font-black text-red-500 uppercase italic animate-pulse">{duplicateError}</p>}
+                </div>
               </div>
             </div>
 
             <div className="grid md:grid-cols-3 gap-6 pt-2">
               <div className="space-y-2">
-                <Label className="text-[11px] font-black uppercase text-slate-400">Status *</Label>
-                <select className="w-full h-12 rounded-xl bg-slate-50 border-none px-4 font-bold outline-none"
-                  value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
-                  <option>New</option>
-                  <option>Contacted</option>
-                  <option>Interested</option>
-                  <option>Follow-up</option>
-                  <option>Closed</option>
-                  <option>Dropped</option>
+                <Label className="text-[11px] font-black uppercase text-slate-900 dark:text-slate-400">Status *</Label>
+                <select className="w-full h-12 rounded-xl bg-white border border-slate-300 dark:border-slate-800 px-4 font-bold outline-none text-slate-900 dark:text-slate-100" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
+                  <option value="New">New</option>
+                  <option value="Contacted">Contacted</option>
+                  <option value="Qualified">In-Progress</option>
+                  <option value="Lost">Lost</option>
+                  <option value="Won">Won</option>
                 </select>
               </div>
               <div className="space-y-2">
-                <Label className="text-[11px] font-black uppercase text-slate-400">Next Action *</Label>
-                <Input placeholder="Contact lead" className="h-12 rounded-xl bg-slate-50 border-none font-bold" 
-                  value={formData.nextAction} onChange={e => setFormData({...formData, nextAction: e.target.value})} />
+                <Label className="text-[11px] font-black uppercase text-slate-900 dark:text-slate-400">Next Action *</Label>
+                <Input className="h-12 rounded-xl bg-white border border-slate-300 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100" value={formData.nextAction} onChange={e => setFormData({ ...formData, nextAction: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label className="text-[11px] font-black uppercase text-slate-400">Next Action Date *</Label>
-                <Input type="date" className="h-12 rounded-xl bg-slate-50 border-none font-bold" 
-                  value={formData.nextActionDate} onChange={e => setFormData({...formData, nextActionDate: e.target.value})} />
+                <Label className="text-[11px] font-black uppercase text-slate-900 dark:text-slate-400">Next Action Date *</Label>
+                <Input type="date" readOnly className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100 cursor-not-allowed opacity-70" value={formData.nextActionDate} />
               </div>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-slate-900 rounded-[32px] p-8 shadow-sm border border-slate-100 dark:border-slate-800 space-y-10">
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label className="text-[11px] font-black uppercase text-slate-400">Relevant Links</Label>
-                <Button type="button" onClick={() => setLinks([...links, { id: Date.now(), url: '' }])} variant="outline" className="rounded-xl font-bold text-xs gap-2 h-9 px-4 border-slate-200"><Plus size={14} /> Add Link</Button>
-              </div>
-              {links.map(link => (
-                <div key={link.id} className="flex gap-2 animate-in fade-in duration-300">
-                  <Input 
-                    placeholder="URL (Portfolio, LinkedIn, etc.)" 
-                    value={link.url}
-                    onChange={(e) => updateLink(link.id, e.target.value)}
-                    className="h-11 rounded-xl bg-slate-50 border-none text-sm font-medium" 
-                  />
-                  {links.length > 1 && <Button type="button" onClick={() => removeLink(link.id)} variant="ghost" className="text-slate-400 hover:text-red-500 h-11 w-11"><Trash2 size={18} /></Button>}
+          {/* Section 2: Details & Schedule */}
+          <div className="bg-card rounded-[32px] p-8 shadow-sm border border-border space-y-10">
+            <div className="grid md:grid-cols-2 gap-10">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-[11px] font-black uppercase text-slate-900 dark:text-slate-400">Relevant Links</Label>
+                  <Button type="button" onClick={() => setLinks([...links, { id: Date.now(), url: '' }])} variant="outline" className="rounded-xl font-bold text-xs gap-2 border-slate-300 dark:border-slate-700 shadow-sm"><Plus size={14} /> Add Link</Button>
                 </div>
-              ))}
-            </div>
-
-            <div className="space-y-4">
-              <Label className="text-[11px] font-black uppercase text-slate-400">Documents / Attachments</Label>
-              <div className="flex items-center h-12 bg-slate-50 rounded-xl px-4 border-2 border-dashed border-slate-200">
-                <input type="file" className="text-xs font-bold text-slate-500 w-full cursor-pointer file:mr-4 file:py-1 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-black file:bg-slate-200 file:text-slate-700 hover:file:bg-slate-300" />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label className="text-[11px] font-black uppercase text-slate-400">Follow-up Schedule</Label>
-                <Button type="button" onClick={() => setFollowups([...followups, { id: Date.now(), action: '', date: '' }])} variant="outline" className="rounded-xl font-bold text-xs gap-2 h-9 px-4 border-slate-200"><Plus size={14} /> Add Follow-up</Button>
-              </div>
-              {followups.map(f => (
-                <div key={f.id} className="flex gap-2 animate-in slide-in-from-right-2">
-                  <Input 
-                    placeholder="Action item / Note..." 
-                    value={f.action}
-                    onChange={(e) => updateFollowup(f.id, 'action', e.target.value)}
-                    className="flex-1 h-11 rounded-xl bg-slate-50 border-none text-sm font-medium" 
-                  />
-                  <Input 
-                    type="date" 
-                    value={f.date}
-                    onChange={(e) => updateFollowup(f.id, 'date', e.target.value)}
-                    className="w-40 h-11 rounded-xl bg-slate-50 border-none text-[11px] font-bold" 
-                  />
-                  {followups.length > 1 && <Button type="button" onClick={() => removeFollowup(f.id)} variant="ghost" className="text-slate-400 hover:text-red-500 h-11 w-11"><X size={18} /></Button>}
-                </div>
-              ))}
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label className="text-[11px] font-black uppercase text-slate-400">Meeting Notes</Label>
-                <Button type="button" onClick={addMeeting} variant="outline" className="rounded-xl font-bold text-xs gap-2 h-9 px-4 border-slate-200"><Plus size={14} /> Add Meeting</Button>
-              </div>
-              {meetings.map((m, index) => (
-                <div key={m.id} className="p-4 bg-slate-50/50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800 relative animate-in zoom-in-95">
-                  <button type="button" onClick={() => removeMeeting(m.id)} className="absolute top-4 right-4 text-slate-400 hover:text-red-500 transition-colors">
-                    <X size={20} />
-                  </button>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                        <span className="text-[10px] font-black uppercase text-[#00a389] tracking-tighter bg-emerald-50 px-2 py-0.5 rounded">Meeting {index + 1}</span>
-                        <Input 
-                          type="date" 
-                          value={m.date}
-                          onChange={(e) => updateMeeting(m.id, 'date', e.target.value)}
-                          className="h-8 w-32 bg-white border-none text-[10px] font-bold rounded-lg shadow-sm" 
-                        />
-                    </div>
-                    <textarea 
-                      placeholder="Brief summary of discussion..." 
-                      value={m.notes}
-                      onChange={(e) => updateMeeting(m.id, 'notes', e.target.value)}
-                      className="w-full h-24 rounded-xl bg-white border-none p-4 text-sm font-medium outline-none resize-none shadow-sm" 
-                    />
+                {links.map(link => (
+                  <div key={link.id} className="flex gap-2">
+                    <Input placeholder="URL" value={link.url} onChange={(e) => updateLink(link.id, e.target.value)} className="h-11 rounded-xl bg-white border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-slate-100" />
+                    {links.length > 1 && <Button type="button" onClick={() => removeLink(link.id)} variant="ghost" className="text-red-500"><Trash2 size={18} /></Button>}
                   </div>
+                ))}
+              </div>
+
+              <div className="space-y-4">
+                <Label className="text-[11px] font-black uppercase text-slate-900 dark:text-slate-400">Documents / Attachments</Label>
+                <div className="flex items-center h-12 bg-white rounded-xl px-4 border-2 border-dashed border-slate-300 dark:border-slate-700">
+                  <input type="file" className="text-xs font-bold text-slate-600 dark:text-slate-400 w-full cursor-pointer file:mr-4 file:py-1 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-black file:bg-slate-200 dark:file:bg-slate-700 file:text-slate-700 dark:file:text-slate-200" />
                 </div>
-              ))}
+              </div>
             </div>
 
             <div className="space-y-4">
-              <Label className="text-[11px] font-black uppercase text-slate-400">Tags</Label>
-              <div className="flex gap-2">
-                <Input placeholder="Type tag & press Enter..." className="flex-1 h-12 rounded-xl bg-slate-50 border-none font-bold" 
-                  value={tagInput} onChange={e => setTagInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addTag())} />
-                <Button type="button" onClick={addTag} className="h-12 w-12 rounded-xl bg-white border border-slate-100 shadow-sm text-slate-400"><Plus size={20} /></Button>
+              <div className="flex items-center justify-between">
+                <Label className="text-[11px] font-black uppercase text-slate-600 dark:text-slate-400">Follow-up Schedule</Label>
+                <Button type="button" onClick={() => setFollowups([...followups, { id: Date.now(), action: '', date: '2026-01-22' }])} variant="outline" className="rounded-xl font-bold text-xs gap-2 border-slate-300 dark:border-slate-700 shadow-sm"><Plus size={14} /> Add Follow-up</Button>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                {followups.map(f => (
+                  <div key={f.id} className="flex gap-2">
+                    <Input placeholder="Action item..." value={f.action} onChange={(e) => updateFollowup(f.id, 'action', e.target.value)} className="flex-1 h-11 rounded-xl bg-muted border border-slate-300 dark:border-slate-800 text-sm text-slate-900 dark:text-slate-100" />
+                    <Input type="date" value={f.date} readOnly className="w-40 h-11 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 text-[11px] font-bold text-slate-900 dark:text-slate-100 cursor-not-allowed opacity-70" />
+                    {followups.length > 1 && <Button type="button" onClick={() => removeFollowup(f.id)} variant="ghost" className="text-red-500"><X size={18} /></Button>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-[11px] font-black uppercase text-slate-600 dark:text-slate-400">Meeting Notes</Label>
+                <Button type="button" onClick={addMeeting} variant="outline" className="rounded-xl font-bold text-xs gap-2 border-slate-300 dark:border-slate-700 shadow-sm"><Plus size={14} /> Add Meeting</Button>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                {meetings.map((m, index) => (
+                  <div key={m.id} className="p-4 bg-muted rounded-2xl border border-slate-300 dark:border-slate-800 relative">
+                    <button type="button" onClick={() => removeMeeting(m.id)} className="absolute top-4 right-4 text-slate-400 dark:text-slate-500 hover:text-red-500"><X size={20} /></button>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <span className="text-[10px] font-black uppercase text-[#00a389] bg-emerald-50 dark:bg-emerald-900/20 px-2 py-0.5 rounded">Meeting {index + 1}</span>
+                        <Input type="date" value={m.date} readOnly className="h-8 w-32 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-[10px] font-bold rounded-lg shadow-sm text-slate-900 dark:text-slate-100 cursor-not-allowed opacity-70" />
+                      </div>
+                      <textarea placeholder="Discussion notes..." value={m.notes} onChange={(e) => updateMeeting(m.id, 'notes', e.target.value)} className="w-full h-24 rounded-xl bg-background border border-slate-300 dark:border-slate-700 p-4 text-sm font-medium outline-none resize-none shadow-sm text-slate-900 dark:text-slate-100" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <Label className="text-[11px] font-black uppercase text-slate-600 dark:text-slate-400">Tags</Label>
+              <div className="flex gap-2 max-w-md">
+                <Input placeholder="Type tag & Enter..." className="flex-1 h-12 rounded-xl bg-muted border border-slate-300 dark:border-slate-800 font-bold text-slate-900 dark:text-slate-100" value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addTag())} />
+                <Button type="button" onClick={addTag} className="h-12 w-12 rounded-xl bg-background border border-slate-300 dark:border-slate-700 shadow-sm text-slate-400"><Plus size={20} /></Button>
               </div>
               <div className="flex flex-wrap gap-2 pt-2">
                 {tags.map(t => (
-                  <span key={t} className="bg-slate-100 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase text-slate-600 flex items-center gap-2 border border-slate-200">
-                    {t} <X size={12} className="cursor-pointer text-red-400" onClick={() => setTags(tags.filter(tag => tag !== t))} />
+                  <span key={t} className="bg-muted px-3 py-1.5 rounded-lg text-[10px] font-black uppercase text-slate-700 dark:text-slate-300 flex items-center gap-2 border border-slate-300 dark:border-slate-700">
+                    {t} <X size={12} className="cursor-pointer text-red-500" onClick={() => setTags(tags.filter(tag => tag !== t))} />
                   </span>
                 ))}
               </div>
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-8 py-10">
-            <button type="button" onClick={() => navigate(-1)} className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] hover:text-slate-600">
-              CANCEL
-            </button>
-            <Button type="submit" disabled={loading} className="h-11 px-10 rounded-full bg-[#00a389] hover:bg-[#008f77] text-white font-[900] text-[11px] uppercase italic tracking-tighter shadow-lg shadow-emerald-100/50 transition-all active:scale-95">
+          <div className="flex items-center justify-start gap-8 py-10">
+            <button type="button" onClick={() => navigate('/dashboard')} className="text-[11px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-[0.2em] hover:text-[#00a389] transition-colors">CANCEL</button>
+            <Button
+              type="submit"
+              disabled={loading || !!duplicateError || checkingDuplicate}
+              className={cn(
+                "h-11 px-10 rounded-full font-[900] text-[11px] uppercase italic tracking-tighter shadow-lg transition-all active:scale-95",
+                duplicateError ? "bg-slate-400 cursor-not-allowed" : "bg-[#00a389] hover:bg-[#008f77] text-white shadow-emerald-100/50"
+              )}
+            >
               {loading ? <Loader2 className="animate-spin" /> : <>ADD LEAD <Save size={14} className="ml-2" /></>}
             </Button>
           </div>
-
         </form>
       </div>
     </div>

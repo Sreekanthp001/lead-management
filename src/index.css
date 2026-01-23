@@ -5,25 +5,26 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 220 20% 10%;
-    --card: 0 0% 100%;
-    --card-foreground: 220 20% 10%;
+    --foreground: 222 47% 11.2%;
+    --muted: 0 0% 100%;
+    --muted-foreground: 215.4 16.3% 46.9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 10%;
-    --primary: 175 70% 40%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 210 20% 96%;
-    --secondary-foreground: 220 20% 20%;
-    --muted: 210 15% 96%;
-    --muted-foreground: 220 10% 50%;
-    --accent: 175 50% 95%;
-    --accent-foreground: 175 70% 30%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 175 70% 40%;
-    --radius: 1rem;
+    --popover-foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 213 27% 84%;
+    /* Slate-300 Approx */
+    --primary: 175 70% 45%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --ring: 175 70% 45%;
+    --radius: 0.5rem;
   }
 
   .dark {
@@ -31,11 +32,22 @@
     --foreground: 210 20% 98%;
     --card: 222 47% 7%;
     --card-foreground: 210 20% 98%;
+    --popover: 222 47% 4%;
+    --popover-foreground: 210 20% 98%;
     --primary: 175 70% 45%;
     --primary-foreground: 222 47% 4%;
+    --secondary: 222 47% 10%;
+    --secondary-foreground: 210 20% 98%;
+    --muted: 222 47% 10%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 222 47% 10%;
+    --accent-foreground: 210 20% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 20% 98%;
     --border: 217 33% 17%;
     --input: 217 33% 17%;
     --ring: 175 70% 45%;
+    --radius: 1rem;
   }
 }
 
@@ -43,13 +55,20 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground antialiased font-['Outfit'];
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    @apply bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-800 text-slate-900 dark:text-white transition-all;
   }
 }
 
 /* Lovable Watermark & Badge Removal */
-.lovable-badge, 
+.lovable-badge,
 #lovable-watermark,
 [data-lovable-badge] {
   display: none !important;

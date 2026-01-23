@@ -1,24 +1,23 @@
-import { Download, Trash2 } from 'lucide-react'; // Trash2 add chesa
-import { supabase } from "@/lib/supabase"; // Supabase import
-import { useNavigate } from 'react-router-dom'; // Navigate import
+import { Download, Trash2 } from 'lucide-react';
+import { supabase } from "@/lib/supabase";
+import { useNavigate } from 'react-router-dom';
 import { toast } from "sonner";
+import { Lead } from '@/contexts/LeadsContext';
 
-interface Lead {
-  id: string;
-  name: string;
-  company: string;
-  source: string;
-  status: string;
-  priority: string;
-  next_action_date: string;
-}
-
-export default function TableView({ leads = [] }: { leads: Lead[] }) {
+export default function TableView({ leads = [], isAdmin, userId }: { leads: Lead[]; isAdmin?: boolean; userId?: string | null }) {
   const navigate = useNavigate();
 
   // DELETE FUNCTION
   const deleteLead = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation(); // Row click trigger avvakunda stop chestundi
+    const lead = leads.find(l => l.id === id);
+    const canManage = isAdmin || (!!userId && (lead?.assigned_to === userId || lead?.user_id === userId));
+
+    if (!canManage) {
+      toast.error("You can only delete your own leads.");
+      return;
+    }
+
     if (window.confirm("Are you sure you want to delete this lead?")) {
       const { error } = await supabase.from('leads').delete().match({ id });
       if (error) toast.error(error.message);
@@ -29,7 +28,7 @@ export default function TableView({ leads = [] }: { leads: Lead[] }) {
   const exportToCSV = () => {
     if (leads.length === 0) return alert("Export cheyadaniki data ledhu mawa!");
     const headers = "Name,Company,Source,Status,Priority,Next Action\n";
-    const rows = leads.map(l => 
+    const rows = leads.map(l =>
       `${l.name || 'N/A'},${l.company || 'Direct'},${l.source || 'Other'},${l.status},${l.priority},${l.next_action_date || 'N/A'}`
     ).join("\n");
     const blob = new Blob([headers + rows], { type: 'text/csv' });
@@ -47,7 +46,7 @@ export default function TableView({ leads = [] }: { leads: Lead[] }) {
           <h2 className="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-white">Lead Database</h2>
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Total: {leads.length} Records</p>
         </div>
-        <button 
+        <button
           onClick={exportToCSV}
           className="flex items-center gap-2 px-4 py-2 bg-[#00a389] text-white rounded-xl text-[10px] font-black uppercase hover:opacity-90 transition-all shadow-md"
         >
@@ -68,8 +67,8 @@ export default function TableView({ leads = [] }: { leads: Lead[] }) {
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-[13px]">
             {leads.map(lead => (
-              <tr 
-                key={lead.id} 
+              <tr
+                key={lead.id}
                 onClick={() => navigate(`/lead/${lead.id}`)} // Detail page navigation
                 className="hover:bg-slate-50/30 dark:hover:bg-slate-800/30 transition-colors cursor-pointer"
               >
@@ -93,9 +92,9 @@ export default function TableView({ leads = [] }: { leads: Lead[] }) {
                 </td>
                 {/* DELETE BUTTON COLUMN */}
                 <td className="p-4 text-center">
-                   <button onClick={(e) => deleteLead(e, lead.id)} className="text-slate-300 hover:text-red-500 transition-colors">
-                     <Trash2 size={16} />
-                   </button>
+                  <button onClick={(e) => deleteLead(e, lead.id)} className="text-slate-300 hover:text-red-500 transition-colors">
+                    <Trash2 size={16} />
+                  </button>
                 </td>
               </tr>
             ))}
