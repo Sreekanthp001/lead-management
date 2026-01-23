@@ -112,15 +112,14 @@ export default function ManageTeam() {
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
-  const { session, user, role: currentUserRole } = useAuth();
+  const { session, user, role: currentUserRole, isAdmin } = useAuth();
   const { teamMembers, setTeamMembers, loadingMembers, setLoadingMembers, lastFetched, setLastFetched, addTeamMember, removeTeamMember } = useTeam();
   const { addOptimisticLead } = useLeads();
   const currentUserId = user?.id;
 
   // Logic to ensure only admin/super_admin can manage, but users can view their own
-  const isAdmin = currentUserRole === 'admin' || currentUserRole === 'super_admin';
-  const isStandardUser = currentUserRole === 'agent' || currentUserRole === 'standard_agent' || currentUserRole === 'user';
-  const canView = isAdmin || isStandardUser;
+  const isStandardUser = !isAdmin;
+  const canView = true; // Everyone authenticated can view this page (filtered accordingly)
 
 
   // ... (fetchTeamMembers and useEffect hook remain unchanged)
@@ -152,7 +151,8 @@ export default function ManageTeam() {
       if (isStandardUser) {
         query = query.eq('id', currentId);
       } else {
-        query = query.in('role', ['agent', 'standard_agent', 'user', 'admin']);
+        // Broaden role check to ensure all users are captured (case-insensitive DB check)
+        query = query.or('role.ilike.admin,role.ilike.user,role.ilike.agent,role.ilike.sub-admin,role.is.null');
       }
 
       const { data: profiles, error: profileError } = await query;

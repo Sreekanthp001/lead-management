@@ -5,6 +5,7 @@ interface AuthContextValue {
   session: any;
   user: any;
   role: string | null;
+  isAdmin: boolean;
   loading: boolean;
   refreshProfile: () => Promise<void>;
 }
@@ -33,11 +34,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const getRoleFromDB = async (userId: string, forceFetch = false) => {
-    // Optimization: If role is already set and we're not forcing a fetch, skip
+    // 1. Check user_metadata FIRST as requested
+    const metadataRole = session?.user?.user_metadata?.role;
+    try {
+      if (metadataRole && session?.user) {
+        const formattedRole = String(metadataRole).toLowerCase();
+        setRole(formattedRole);
+        return formattedRole;
+      }
+    } catch (e) {
+      console.error("Metadata Role parse error", e);
+    }
+
     if (role && !forceFetch) return role;
 
     try {
-      // 1. Check Cache first (unless forceFetch is true)
       if (!forceFetch) {
         const cached = localStorage.getItem(`vm_user_role_${userId}`);
         if (cached) {
@@ -46,8 +57,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // EMERGENCY BYPASS: Explicitly identify main admin email
-      // Using existing session state if available to avoid extra network hits
       const currentUserEmail = session?.user?.email;
       if (currentUserEmail === 'hello@venturemond.com') {
         setRole('admin');
@@ -61,12 +70,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', userId)
         .maybeSingle();
 
-      if (error) {
+      if (error || !data) {
         setRole('user');
         return 'user';
       }
 
-      const finalRole = data?.role || 'user';
+      const finalRole = data.role?.toLowerCase() || 'user';
       setRole(finalRole);
       localStorage.setItem(`vm_user_role_${userId}`, finalRole);
       return finalRole;
@@ -106,68 +115,77 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     };
 
-    // EMERGENCY FALLBACK: 2-second strict timeout
     const safetyTimeout = setTimeout(() => {
       if (mounted && loading) {
         console.warn("Session verification timed out, forcing load completion.");
         setLoading(false);
       }
-    }, 1000); // 1 second max wait
+    }, 2000); // Increased to 2 seconds for slower connections
 
-    initialize();
+    try {
+      initialize();
+    } catch (e) {
+      console.error("Auth initialize critical error", e);
+      setLoading(false);
+    }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
-      if (mounted) {
-        // console.log("Auth State Change:", event);
-        setSession(currentSession);
+    let subscription: any = null;
+    try {
+      const response = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+        if (!mounted) return;
 
-        // PERSIST SESSION: Update localStorage on auth state change
-        if (currentSession) {
-          localStorage.setItem('vm_session_cache', JSON.stringify({
-            session: currentSession,
-            timestamp: Date.now()
-          }));
-        } else {
-          localStorage.removeItem('vm_session_cache');
-        }
+        try {
+          console.log("Auth State Changed:", event);
+          setSession(currentSession);
 
-        if (currentSession?.user) {
-          if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-            await getRoleFromDB(currentSession.user.id, true); // Force fetch on new sign in
-          } else if (!role) {
-            await getRoleFromDB(currentSession.user.id);
+          if (currentSession) {
+            localStorage.setItem('vm_session_cache', JSON.stringify({
+              session: currentSession,
+              timestamp: Date.now()
+            }));
+          } else {
+            localStorage.removeItem('vm_session_cache');
           }
-        } else if (event === 'SIGNED_OUT') {
-          // Clear all caches on logout
-          Object.keys(localStorage).forEach(key => {
-            if (key.startsWith('vm_user_role_') || key === 'vm_session_cache') {
-              localStorage.removeItem(key);
-            }
-          });
-          setRole(null);
-          setSession(null);
-        }
 
-        setLoading(false);
-      }
-    });
+          if (currentSession?.user) {
+            await getRoleFromDB(currentSession.user.id, event === 'SIGNED_IN');
+          } else if (event === 'SIGNED_OUT') {
+            localStorage.removeItem('vt_leads_cache');
+            setRole('user');
+          }
+        } catch (innerError) {
+          console.error("Auth state change processing error", innerError);
+        } finally {
+          setLoading(false);
+        }
+      });
+      subscription = response.data.subscription;
+    } catch (e) {
+      console.error("Auth subscription error", e);
+      setLoading(false);
+    }
 
     return () => {
       mounted = false;
       clearTimeout(safetyTimeout);
-      subscription.unsubscribe();
+      if (subscription) subscription.unsubscribe();
     };
   }, []);
+
+  const isAdmin = useMemo(() => {
+    return session?.user?.email === 'hello@venturemond.com';
+  }, [session?.user?.email]);
 
   const value = useMemo(() => ({
     session,
     user: session?.user,
     role,
+    isAdmin,
     loading,
     refreshProfile: async () => {
       if (session?.user) await getRoleFromDB(session.user.id, true); // Manual refresh forces fetch
     }
-  }), [session, role, loading]);
+  }), [session, role, isAdmin, loading]);
 
   return (
     <AuthContext.Provider value={value}>

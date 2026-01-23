@@ -19,10 +19,9 @@ export default function LeadDetails() {
   const [interactionType, setInteractionType] = useState('Meeting');
   const [nextActionDate, setNextActionDate] = useState('');
   const [priority, setPriority] = useState('Medium');
-  const { role, session } = useAuth();
+  const { role, session, isAdmin } = useAuth();
   const { updateOptimisticLead } = useLeads();
   const userId = session?.user?.id;
-  const isAdmin = role === 'admin' || role === 'super_admin';
 
   const fetchLeadData = async () => {
     if (!id) return;

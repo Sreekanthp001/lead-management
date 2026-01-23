@@ -8,13 +8,15 @@ export default function ProtectedRoute({
   children: React.ReactNode;
   allowedRoles?: string[];
 }) {
-  const { session, role, loading } = useAuth();
+  const { session, role, isAdmin, loading } = useAuth();
 
   if (loading) return null;
   if (!session) return <Navigate to="/login" replace />;
 
-  if (allowedRoles && role && !allowedRoles.includes(role)) {
-    return <Navigate to="/dashboard" replace />;
+  if (allowedRoles) {
+    if (!isAdmin && !allowedRoles.includes(role || '')) {
+      return <Navigate to="/dashboard" replace />;
+    }
   }
 
   return <>{children}</>;

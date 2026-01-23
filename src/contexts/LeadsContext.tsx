@@ -77,8 +77,7 @@ export const LeadsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return null;
     });
     const [loading, setLoading] = useState(false);
-    const { role } = useAuth();
-    const isAdmin = role === 'admin' || role === 'super_admin';
+    const { isAdmin, session } = useAuth();
 
     // REAL-TIME COUNTS: Calculate from leads array
     const counts = useMemo(() => {
@@ -86,7 +85,10 @@ export const LeadsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return {
             all: leads.length,
             overdue: leads.filter(l => l.next_action_date && l.next_action_date < todayStr && !['Won', 'Lost', 'Closed', 'Dropped'].includes(l.status || '')).length,
-            today: leads.filter(l => l.next_action_date === todayStr).length,
+            today: leads.filter(l => {
+                const createdDate = l.created_at ? new Date(l.created_at).toLocaleDateString('en-CA') : null;
+                return l.next_action_date === todayStr || createdDate === todayStr;
+            }).length,
             active: leads.filter(l => !['Won', 'Lost', 'Closed', 'Dropped'].includes(l.status || '')).length,
             closed: leads.filter(l => ['Won', 'Lost', 'Closed', 'Dropped'].includes(l.status || '')).length,
         };
@@ -102,48 +104,56 @@ export const LeadsProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     }, [leads, lastFetched]);
 
+    const isFetchingRef = React.useRef(false);
+
     const fetchLeads = useCallback(async (userId: string, force = false) => {
-        // Cache Duration: 5 minutes (300,000 ms)
-        const CACHE_DURATION = 300000;
+        const CACHE_DURATION = 300000; // 5 minutes
         const now = Date.now();
 
-        if (!force && lastFetched && (now - lastFetched < CACHE_DURATION) && leads.length > 0) {
+        // 1. Guard against concurrent fetches
+        if (isFetchingRef.current && !force) return;
+
+        // 2. Cache check
+        if (!force && lastFetched && (now - lastFetched < CACHE_DURATION)) {
             return;
         }
 
-        // Only show full-page loader if we have no data
-        if (leads.length === 0) setLoading(true);
+        const effectiveUserId = session?.user?.id || userId;
+        if (!effectiveUserId) return;
 
-        // EMERGENCY RESET: 1s fallback
-        const safetyTimeout = setTimeout(() => {
-            setLoading(false);
-        }, 1000);
+        setLoading(true);
+        isFetchingRef.current = true;
+        let safetyTimeout: any = null;
 
         try {
+            safetyTimeout = setTimeout(() => {
+                setLoading(false);
+                isFetchingRef.current = false;
+            }, 5000);
+
             let query = supabase
                 .from('leads')
                 .select('*')
                 .order('created_at', { ascending: false });
 
-            // If not admin, only show leads they own or are assigned to
-            if (!isAdmin) {
-                query = query.or(`user_id.eq.${userId},assigned_to.eq.${userId}`);
-            }
+            // STRICT FILTERING: Everyone (including Admin) only sees their own leads in the main context
+            // This ensures Sidebar counts and Personal Dashboard are specific to the logged-in user.
+            query = query.or(`user_id.eq.${effectiveUserId},assigned_to.eq.${effectiveUserId}`);
 
             const { data, error } = await query;
-
             if (error) throw error;
 
             setLeads(data || []);
             setLastFetched(now);
         } catch (error: any) {
-            console.error("Error fetching leads:", error.message);
+            console.error("Critical Sync Error:", error.message);
             toast.error("Failed to sync leads");
         } finally {
-            clearTimeout(safetyTimeout);
+            if (safetyTimeout) clearTimeout(safetyTimeout);
             setLoading(false);
+            isFetchingRef.current = false;
         }
-    }, [isAdmin]); // Stable with isAdmin dependency
+    }, [isAdmin, lastFetched, session?.user?.id]); // Now stable! loading and lastFetched are not deps. // Stable with isAdmin dependency
 
     const addOptimisticLead = useCallback((lead: Lead) => {
         setLeads(prev => [lead, ...prev]);

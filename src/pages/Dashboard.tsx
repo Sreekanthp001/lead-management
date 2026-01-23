@@ -94,7 +94,7 @@ const LeadRow = memo(({ lead, isAdmin, navigate, onClone, onDelete }: {
 ));
 
 export default function Dashboard({ filter = 'all' }: { filter?: string }) {
-  const { session, user, role } = useAuth();
+  const { session, user, role, isAdmin } = useAuth();
   const { leads: allLeads, setLeads: setAllLeads, addOptimisticLead, removeOptimisticLead, fetchLeads, loading, lastFetched } = useLeads();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -113,7 +113,7 @@ export default function Dashboard({ filter = 'all' }: { filter?: string }) {
     return null;
   });
 
-  const todayStr = useMemo(() => new Date().toLocaleDateString('en-CA'), []);
+  const todayStr = new Date().toLocaleDateString('en-CA');
 
   // Sync activeStatFilter when filter prop changes
   useEffect(() => {
@@ -131,7 +131,6 @@ export default function Dashboard({ filter = 'all' }: { filter?: string }) {
   }, [searchQuery]);
 
   const userId = session?.user?.id;
-  const isAdmin = role === 'admin' || role === 'super_admin';
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
 
@@ -164,7 +163,10 @@ export default function Dashboard({ filter = 'all' }: { filter?: string }) {
     if (activeStatFilter === 'Overdue') {
       list = list.filter(l => l.next_action_date && l.next_action_date < todayStr && !['Lost', 'Won', 'Closed', 'Dropped'].includes(l.status));
     } else if (activeStatFilter === 'Today Followups') {
-      list = list.filter(l => l.next_action_date === todayStr);
+      list = list.filter(l => {
+        const createdDate = l.created_at ? new Date(l.created_at).toLocaleDateString('en-CA') : null;
+        return l.next_action_date === todayStr || createdDate === todayStr;
+      });
     } else if (activeStatFilter === 'Active Leads') {
       list = list.filter(l => !['Lost', 'Won', 'Closed', 'Dropped'].includes(l.status));
     } else if (activeStatFilter === 'Closed / Dropped') {
@@ -344,7 +346,14 @@ export default function Dashboard({ filter = 'all' }: { filter?: string }) {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { label: 'Total Leads', val: allLeads.length, id: 'total' },
-            { label: 'Today Followups', val: allLeads.filter(l => l.next_action_date === todayStr).length, id: 'today' },
+            {
+              label: 'Today Followups',
+              val: allLeads.filter(l => {
+                const createdDate = l.created_at ? new Date(l.created_at).toLocaleDateString('en-CA') : null;
+                return l.next_action_date === todayStr || createdDate === todayStr;
+              }).length,
+              id: 'today'
+            },
             { label: 'Overdue', val: allLeads.filter(l => l.next_action_date && l.next_action_date < todayStr && !['Lost', 'Won', 'Closed', 'Dropped'].includes(l.status)).length, id: 'overdue' },
             { label: 'Active Leads', val: allLeads.filter(l => !['Lost', 'Won', 'Closed', 'Dropped'].includes(l.status)).length, id: 'active' }
           ].map((s) => (

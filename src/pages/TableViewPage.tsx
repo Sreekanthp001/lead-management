@@ -7,9 +7,8 @@ import { useLeads } from '@/contexts/LeadsContext';
 
 export default function TableViewPage() {
   const { leads, loading, fetchLeads } = useLeads();
-  const { role, session } = useAuth();
+  const { isAdmin, session } = useAuth();
   const userId = session?.user?.id;
-  const isAdmin = role === 'admin' || role === 'super_admin';
 
   useEffect(() => {
     if (userId) {
